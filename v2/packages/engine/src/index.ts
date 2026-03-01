@@ -33,6 +33,8 @@ export {
   type ToolRegistryToolSummary,
 } from "./tool-registry";
 
+export { createSourceToolRegistry } from "./source-tool-registry";
+
 export {
   makeOpenApiToolProvider,
   openApiToolDescriptorsFromManifest,

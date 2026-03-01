@@ -12,6 +12,7 @@ const setup = () =>
     "./mcp.ts": () => import("./mcp"),
     "./executor.ts": () => import("./executor"),
     "./runtimeCallbacks.ts": () => import("./runtimeCallbacks"),
+    "./source_tool_registry.ts": () => import("./source_tool_registry"),
     "./controlPlane.ts": () => import("./controlPlane"),
     "./_generated/api.js": () => import("./_generated/api.js"),
   });

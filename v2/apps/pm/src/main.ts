@@ -5,17 +5,23 @@ import {
   makeControlPlaneSourcesService,
   makeControlPlaneWebHandler,
   makeSourceCatalogService,
+  makeSourceManagerService,
 } from "@executor-v2/management-api";
 import {
+  RuntimeAdapterError,
   createRunExecutor,
-  createRuntimeToolCallHandler,
-  createUnimplementedRuntimeToolInvoker,
+  createRuntimeToolCallService,
+  createSourceToolRegistry,
+  makeOpenApiToolProvider,
   makeRuntimeAdapterRegistry,
+  makeToolProviderRegistry,
 } from "@executor-v2/engine";
 import {
   makeLocalSourceStore,
   makeLocalStateStore,
+  makeLocalToolArtifactStore,
 } from "@executor-v2/persistence-local";
+import { type RuntimeToolCallResult } from "@executor-v2/sdk";
 import { makeCloudflareWorkerLoaderRuntimeAdapter } from "@executor-v2/runtime-cloudflare-worker-loader";
 import { makeDenoSubprocessRuntimeAdapter } from "@executor-v2/runtime-deno-subprocess";
 import { makeLocalInProcessRuntimeAdapter } from "@executor-v2/runtime-local-inproc";
@@ -24,7 +30,6 @@ import * as Layer from "effect/Layer";
 
 import { PmActorLive } from "./actor";
 import { createPmApprovalsService } from "./approvals-service";
-import { createPmResolveToolCredentials } from "./credential-resolver";
 import { startPmHttpServer } from "./http-server";
 import { createPmMcpHandler } from "./mcp-handler";
 import { createPmExecuteRuntimeRun } from "./runtime-execution-port";
@@ -46,7 +51,16 @@ const readConfiguredRuntimeKind = (value: string | undefined): string | undefine
   return normalized.length > 0 ? normalized : undefined;
 };
 
+const readConfiguredWorkspaceId = (value: string | undefined): string => {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : "ws_local";
+};
+
+const formatRuntimeAdapterError = (error: RuntimeAdapterError): string =>
+  error.details ? `${error.message}: ${error.details}` : error.message;
+
 const port = parsePort(process.env.PORT);
+const workspaceId = readConfiguredWorkspaceId(process.env.PM_WORKSPACE_ID);
 
 const pmRuntimeAdapters = [
   makeLocalInProcessRuntimeAdapter(),
@@ -55,7 +69,6 @@ const pmRuntimeAdapters = [
 ];
 
 const runtimeAdapters = makeRuntimeAdapterRegistry(pmRuntimeAdapters);
-
 const defaultRuntimeKind =
   readConfiguredRuntimeKind(process.env.PM_RUNTIME_KIND) ?? pmRuntimeAdapters[0].kind;
 
@@ -71,10 +84,55 @@ const localStateStore = await Effect.runPromise(
   }).pipe(Effect.provide(BunContext.layer)),
 );
 
+const toolArtifactStore = await Effect.runPromise(
+  makeLocalToolArtifactStore({
+    rootDir: pmStateRootDir,
+  }).pipe(Effect.provide(BunContext.layer)),
+);
+
 const sourceCatalog = makeSourceCatalogService(sourceStore);
+const sourceManager = makeSourceManagerService(toolArtifactStore);
+const baseSourcesService = makeControlPlaneSourcesService(sourceCatalog);
+const sourcesService = {
+  ...baseSourcesService,
+  upsertSource: (input: Parameters<typeof baseSourcesService.upsertSource>[0]) =>
+    Effect.gen(function* () {
+      const source = yield* baseSourcesService.upsertSource(input);
+
+      if (source.kind !== "openapi") {
+        return source;
+      }
+
+      const openApiSpecResult = yield* Effect.tryPromise({
+        try: async () => {
+          const response = await fetch(source.endpoint);
+          if (!response.ok) {
+            throw new Error(`Failed fetching OpenAPI spec (${response.status})`);
+          }
+
+          return await response.json();
+        },
+        catch: (cause) => String(cause),
+      }).pipe(Effect.either);
+
+      if (openApiSpecResult._tag === "Left") {
+        return source;
+      }
+
+      yield* sourceManager
+        .refreshOpenApiArtifact({
+          source,
+          openApiSpec: openApiSpecResult.right,
+        })
+        .pipe(Effect.ignore);
+
+      return source;
+    }),
+};
+
 const approvalsService = createPmApprovalsService(localStateStore);
 const controlPlaneService = makeControlPlaneService({
-  sources: makeControlPlaneSourcesService(sourceCatalog),
+  sources: sourcesService,
   approvals: approvalsService,
 });
 
@@ -83,24 +141,40 @@ const controlPlaneWebHandler = makeControlPlaneWebHandler(
   PmActorLive(localStateStore),
 );
 
-const resolveCredentials = createPmResolveToolCredentials(localStateStore);
-const invokeRuntimeTool = createUnimplementedRuntimeToolInvoker("pm");
-const handleToolCall = createRuntimeToolCallHandler({
-  resolveCredentials,
-  invokeRuntimeTool,
+const toolProviderRegistry = makeToolProviderRegistry([makeOpenApiToolProvider()]);
+const toolRegistry = createSourceToolRegistry({
+  workspaceId,
+  sourceStore,
+  toolArtifactStore,
+  toolProviderRegistry,
 });
+const runtimeToolCallService = createRuntimeToolCallService(toolRegistry);
 
 const executeRuntimeRun = createPmExecuteRuntimeRun({
   defaultRuntimeKind,
   runtimeAdapters,
-  handleToolCall,
+  toolRegistry,
 });
 
 const runExecutor = createRunExecutor(executeRuntimeRun);
 const handleMcp = createPmMcpHandler(runExecutor.executeRun);
 
 const handleToolCallHttp = createPmToolCallHttpHandler((input) =>
-  Effect.runPromise(handleToolCall(input)),
+  Effect.runPromise(
+    runtimeToolCallService.callTool(input).pipe(
+      Effect.map((value): RuntimeToolCallResult => ({
+        ok: true,
+        value,
+      })),
+      Effect.catchTag("RuntimeAdapterError", (error) =>
+        Effect.succeed<RuntimeToolCallResult>({
+          ok: false,
+          kind: "failed",
+          error: formatRuntimeAdapterError(error),
+        }),
+      ),
+    ),
+  ),
 );
 
 const server = startPmHttpServer({

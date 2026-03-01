@@ -25,7 +25,8 @@ export const toSourceStoreError = (
 ): SourceStoreError =>
   new SourceStoreError({
     operation,
-    filePath: "convex://control-plane",
+    backend: "convex",
+    location: "control-plane",
     message: "Convex control plane call failed",
     reason: null,
     details: renderCause(cause),

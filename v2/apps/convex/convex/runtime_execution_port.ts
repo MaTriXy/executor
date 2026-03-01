@@ -1,8 +1,10 @@
 import {
-  RuntimeAdapterError,
   RuntimeExecutionPortError,
+  createRuntimeToolCallService,
+  createStaticToolRegistry,
   type ExecuteRuntimeRun,
   type ExecuteRuntimeRunInput,
+  type ToolRegistry,
   makeRuntimeAdapterRegistry,
   type RuntimeExecuteError,
 } from "@executor-v2/engine";
@@ -13,56 +15,60 @@ const convexRuntimeAdapter = makeLocalInProcessRuntimeAdapter();
 
 const runtimeAdapters = makeRuntimeAdapterRegistry([convexRuntimeAdapter]);
 
-const missingToolCallService = (runId: string, toolPath: string): RuntimeAdapterError =>
-  new RuntimeAdapterError({
-    operation: "call_tool",
-    runtimeKind: convexRuntimeAdapter.kind,
-    message: `No runtime tool-call service configured in convex for ${toolPath}`,
-    details: `runId=${runId}`,
-  });
+export type ConvexRuntimeExecutionPortOptions = {
+  toolRegistry?: ToolRegistry;
+};
 
-export const executeRuntimeRunInConvex: ExecuteRuntimeRun = (
-  input: ExecuteRuntimeRunInput,
-) =>
-  Effect.gen(function* () {
-    const runtimeAdapter = yield* runtimeAdapters.get(convexRuntimeAdapter.kind).pipe(
-      Effect.mapError(
-        (error) =>
-          new RuntimeExecutionPortError({
-            operation: "resolve_runtime_adapter",
-            message: error.message,
-            details: null,
-          }),
-      ),
-    );
+export const createExecuteRuntimeRunInConvex = (
+  options: ConvexRuntimeExecutionPortOptions = {},
+): ExecuteRuntimeRun => {
+  const toolRegistry =
+    options.toolRegistry ??
+    createStaticToolRegistry({
+      tools: {},
+    });
+  const toolCallService = createRuntimeToolCallService(toolRegistry);
 
-    const isAvailable = yield* runtimeAdapter.isAvailable();
-    if (!isAvailable) {
-      return yield* new RuntimeExecutionPortError({
-        operation: "runtime_available",
-        message: `Runtime '${convexRuntimeAdapter.kind}' is not available in this convex process.`,
-        details: null,
-      });
-    }
-
-    return yield* runtimeAdapter
-      .execute({
-        runId: input.runId,
-        code: input.code,
-        timeoutMs: input.timeoutMs,
-        toolCallService: {
-          callTool: (toolInput) =>
-            Effect.fail(missingToolCallService(toolInput.runId, toolInput.toolPath)),
-        },
-      })
-      .pipe(
+  return (input: ExecuteRuntimeRunInput) =>
+    Effect.gen(function* () {
+      const runtimeAdapter = yield* runtimeAdapters.get(convexRuntimeAdapter.kind).pipe(
         Effect.mapError(
-          (error: RuntimeExecuteError) =>
+          (error) =>
             new RuntimeExecutionPortError({
-              operation: "runtime_execute",
+              operation: "resolve_runtime_adapter",
               message: error.message,
-              details: error.details,
+              details: null,
             }),
         ),
       );
-  });
+
+      const isAvailable = yield* runtimeAdapter.isAvailable();
+      if (!isAvailable) {
+        return yield* new RuntimeExecutionPortError({
+          operation: "runtime_available",
+          message: `Runtime '${convexRuntimeAdapter.kind}' is not available in this convex process.`,
+          details: null,
+        });
+      }
+
+      return yield* runtimeAdapter
+        .execute({
+          runId: input.runId,
+          code: input.code,
+          timeoutMs: input.timeoutMs,
+          toolCallService,
+        })
+        .pipe(
+          Effect.mapError(
+            (error: RuntimeExecuteError) =>
+              new RuntimeExecutionPortError({
+                operation: "runtime_execute",
+                message: error.message,
+                details: error.details,
+              }),
+          ),
+        );
+    });
+};
+
+export const executeRuntimeRunInConvex = createExecuteRuntimeRunInConvex();

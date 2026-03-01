@@ -19,7 +19,8 @@ const toSourceStoreError = (
 ): SourceStoreError =>
   new SourceStoreError({
     operation,
-    filePath: "local://snapshot.json",
+    backend: "local-file",
+    location: "snapshot.json",
     message,
     reason: null,
     details,

@@ -5,7 +5,8 @@ import * as ParseResult from "effect/ParseResult";
 
 export type PersistenceErrorData = {
   operation: string;
-  filePath: string;
+  backend: string;
+  location: string;
   message: string;
   reason: string | null;
   details: string | null;
@@ -13,9 +14,11 @@ export type PersistenceErrorData = {
 
 type PersistenceErrorFactory<E> = (data: PersistenceErrorData) => E;
 
+const defaultPersistenceBackend = "local-file";
+
 export const withPlatformPersistenceError =
   <E>(makeError: PersistenceErrorFactory<E>) =>
-  <A>(operation: string, filePath: string) =>
+  <A>(operation: string, location: string, backend = defaultPersistenceBackend) =>
   (
     self: Effect.Effect<A, PlatformError.PlatformError>,
   ): Effect.Effect<A, E> =>
@@ -26,7 +29,8 @@ export const withPlatformPersistenceError =
           Effect.fail(
             makeError({
               operation,
-              filePath,
+              backend,
+              location,
               message: cause.message,
               reason: cause.reason,
               details: cause.description ?? null,
@@ -36,7 +40,8 @@ export const withPlatformPersistenceError =
           Effect.fail(
             makeError({
               operation,
-              filePath,
+              backend,
+              location,
               message: cause.message,
               reason: null,
               details: cause.description ?? null,
@@ -60,14 +65,16 @@ export const withNotFoundFallback =
 export const toSchemaPersistenceError = <E>(
   makeError: PersistenceErrorFactory<E>,
   operation: string,
-  filePath: string,
+  location: string,
   message: string,
   cause: ParseResult.ParseError,
   details?: string,
+  backend = defaultPersistenceBackend,
 ): E =>
   makeError({
     operation,
-    filePath,
+    backend,
+    location,
     message,
     reason: "InvalidData",
     details:
@@ -79,13 +86,15 @@ export const toSchemaPersistenceError = <E>(
 export const toInvalidDataError = <E>(
   makeError: PersistenceErrorFactory<E>,
   operation: string,
-  filePath: string,
+  location: string,
   message: string,
   details: string,
+  backend = defaultPersistenceBackend,
 ): E =>
   makeError({
     operation,
-    filePath,
+    backend,
+    location,
     message,
     reason: "InvalidData",
     details,

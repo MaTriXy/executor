@@ -6,7 +6,8 @@ import type * as Option from "effect/Option";
 
 export class ToolArtifactStoreError extends Data.TaggedError("ToolArtifactStoreError")<{
   operation: string;
-  filePath: string;
+  backend: string;
+  location: string;
   message: string;
   reason: string | null;
   details: string | null;

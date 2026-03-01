@@ -8,7 +8,8 @@ import type { LocalStateSnapshot } from "./local-state-snapshot";
 
 export class LocalStateStoreError extends Data.TaggedError("LocalStateStoreError")<{
   operation: string;
-  filePath: string;
+  backend: string;
+  location: string;
   message: string;
   reason: string | null;
   details: string | null;
