@@ -4,7 +4,6 @@ import type {
   UpsertCredentialBindingPayload,
 } from "@executor-v2/management-api/credentials/api";
 import type {
-  CredentialBindingId,
   CredentialProvider,
   CredentialScopeType,
   SourceCredentialBinding,
@@ -55,7 +54,7 @@ export const removeCredentialBinding = controlPlaneClient.mutation("credentials"
 // ---------------------------------------------------------------------------
 
 export const toCredentialBindingUpsertPayload = (input: {
-  id?: CredentialBindingId;
+  id?: SourceCredentialBinding["id"];
   credentialId: SourceCredentialBinding["credentialId"];
   scopeType: CredentialScopeType;
   sourceKey: string;

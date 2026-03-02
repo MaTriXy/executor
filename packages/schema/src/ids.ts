@@ -6,11 +6,6 @@ export const ProfileIdSchema = Schema.String.pipe(Schema.brand("ProfileId"));
 export const WorkspaceIdSchema = Schema.String.pipe(Schema.brand("WorkspaceId"));
 export const SourceIdSchema = Schema.String.pipe(Schema.brand("SourceId"));
 export const ToolArtifactIdSchema = Schema.String.pipe(Schema.brand("ToolArtifactId"));
-export const CredentialBindingIdSchema = Schema.String.pipe(
-  Schema.brand("CredentialBindingId"),
-);
-export const CredentialIdSchema = Schema.String.pipe(Schema.brand("CredentialId"));
-export const OAuthTokenIdSchema = Schema.String.pipe(Schema.brand("OAuthTokenId"));
 export const AuthConnectionIdSchema = Schema.String.pipe(
   Schema.brand("AuthConnectionId"),
 );
@@ -42,9 +37,6 @@ export type ProfileId = typeof ProfileIdSchema.Type;
 export type WorkspaceId = typeof WorkspaceIdSchema.Type;
 export type SourceId = typeof SourceIdSchema.Type;
 export type ToolArtifactId = typeof ToolArtifactIdSchema.Type;
-export type CredentialBindingId = typeof CredentialBindingIdSchema.Type;
-export type CredentialId = typeof CredentialIdSchema.Type;
-export type OAuthTokenId = typeof OAuthTokenIdSchema.Type;
 export type AuthConnectionId = typeof AuthConnectionIdSchema.Type;
 export type SourceAuthBindingId = typeof SourceAuthBindingIdSchema.Type;
 export type AuthMaterialId = typeof AuthMaterialIdSchema.Type;

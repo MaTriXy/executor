@@ -497,7 +497,7 @@ export function SourceManagementPanel({ editSource, onDone }: SourceManagementPa
                 workspaceId,
                 payload: toCredentialBindingUpsertPayload({
                   ...(existingBinding ? { id: existingBinding.id } : {}),
-                  credentialId: (existingBinding?.credentialId ?? createLocalId("cred_")) as SourceCredentialBinding["credentialId"],
+                  credentialId: (existingBinding?.credentialId ?? createLocalId("conn_")) as SourceCredentialBinding["credentialId"],
                   scopeType,
                   sourceKey,
                   provider: "oauth2",

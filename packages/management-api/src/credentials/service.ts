@@ -1,7 +1,7 @@
 import { type SourceStoreError } from "@executor-v2/persistence-ports";
 import {
-  type CredentialBindingId,
   type SourceCredentialBinding,
+  type SourceAuthBindingId,
   type WorkspaceId,
 } from "@executor-v2/schema";
 import * as Effect from "effect/Effect";
@@ -18,7 +18,7 @@ export type UpsertCredentialBindingInput = {
 
 export type RemoveCredentialBindingInput = {
   workspaceId: WorkspaceId;
-  credentialBindingId: CredentialBindingId;
+  credentialBindingId: SourceAuthBindingId;
 };
 
 export type ControlPlaneCredentialsServiceShape = {

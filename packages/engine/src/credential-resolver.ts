@@ -1,7 +1,5 @@
 import type {
-  OAuthToken,
   SourceCredentialBinding,
-  WorkspaceId,
 } from "@executor-v2/schema";
 import type {
   RuntimeToolCallCredentialContext,
@@ -157,11 +155,22 @@ const parseAdditionalHeaders = (
   return decoded.right;
 };
 
+type OAuthAccessTokenRecord = {
+  workspaceId: string;
+  organizationId: string | null;
+  accountId: string | null;
+  sourceId: string;
+  accessTokenRef: string;
+  expiresAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
 const tokenScopeScore = (
-  token: OAuthToken,
+  token: OAuthAccessTokenRecord,
   context: RuntimeToolCallCredentialContext,
 ): number => {
-  if (token.workspaceId !== (context.workspaceId as WorkspaceId)) {
+  if (token.workspaceId !== context.workspaceId) {
     return -1;
   }
 
@@ -196,7 +205,7 @@ const tokenScopeScore = (
 };
 
 export const selectOAuthAccessToken = (
-  tokens: ReadonlyArray<OAuthToken>,
+  tokens: ReadonlyArray<OAuthAccessTokenRecord>,
   context: RuntimeToolCallCredentialContext,
   sourceId: string,
 ): string | null => {

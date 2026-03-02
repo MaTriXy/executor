@@ -1,6 +1,6 @@
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "@effect/platform";
 import {
-  CredentialBindingIdSchema,
+  SourceAuthBindingIdSchema,
   SourceCredentialBindingSchema,
   WorkspaceIdSchema,
 } from "@executor-v2/schema";
@@ -60,7 +60,7 @@ export type RemoveCredentialBindingResult =
 const workspaceIdParam = HttpApiSchema.param("workspaceId", WorkspaceIdSchema);
 const credentialBindingIdParam = HttpApiSchema.param(
   "credentialBindingId",
-  CredentialBindingIdSchema,
+  SourceAuthBindingIdSchema,
 );
 
 export class CredentialsApi extends HttpApiGroup.make("credentials")

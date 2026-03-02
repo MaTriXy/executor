@@ -8,15 +8,15 @@ import {
 } from "../enums";
 import {
   AccountIdSchema,
-  CredentialBindingIdSchema,
-  CredentialIdSchema,
+  AuthConnectionIdSchema,
   OrganizationIdSchema,
+  SourceAuthBindingIdSchema,
   WorkspaceIdSchema,
 } from "../ids";
 
 export const SourceCredentialBindingSchema = Schema.Struct({
-  id: CredentialBindingIdSchema,
-  credentialId: CredentialIdSchema,
+  id: SourceAuthBindingIdSchema,
+  credentialId: AuthConnectionIdSchema,
   organizationId: OrganizationIdSchema,
   workspaceId: Schema.NullOr(WorkspaceIdSchema),
   accountId: Schema.NullOr(AccountIdSchema),

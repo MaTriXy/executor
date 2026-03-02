@@ -6,7 +6,6 @@ export * from "./models/profile";
 export * from "./models/workspace";
 export * from "./models/source";
 export * from "./models/tool-artifact";
-export * from "./models/oauth-token";
 export * from "./models/source-credential-binding";
 export * from "./models/auth-connection";
 export * from "./models/source-auth-binding";

@@ -172,7 +172,7 @@ export function CredentialsView() {
 
     const requestId =
       credentialEditingId ??
-      (createLocalId("credential_binding_") as SourceCredentialBinding["id"]);
+      (createLocalId("auth_binding_") as SourceCredentialBinding["id"]);
 
     setCredentialBusyId(requestId);
 
@@ -319,7 +319,7 @@ export function CredentialsView() {
                   id="credential-id"
                   value={credentialIdInput}
                   onChange={(event) => setCredentialIdInput(event.target.value)}
-                  placeholder="cred_123"
+                  placeholder="conn_123"
                   required
                   disabled={credentialBusyId !== null}
                 />

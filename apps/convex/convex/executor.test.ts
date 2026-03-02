@@ -200,8 +200,8 @@ describe("Convex executor and control-plane", () => {
         t.action(api.controlPlane.upsertCredentialBinding, {
           workspaceId: "ws_1",
           payload: {
-            id: "credential_binding_1",
-            credentialId: "cred_1",
+            id: "auth_binding_1",
+            credentialId: "conn_1",
             scopeType: "workspace",
             sourceKey: "source:github",
             provider: "bearer",
@@ -216,7 +216,7 @@ describe("Convex executor and control-plane", () => {
         workspaceId: string | null;
       };
 
-      expect(addedCredential.id).toBe("credential_binding_1");
+      expect(addedCredential.id).toBe("auth_binding_1");
       expect(addedCredential.workspaceId).toBe("ws_1");
 
       const listedCredentials = (yield* Effect.tryPromise(() =>
@@ -228,12 +228,12 @@ describe("Convex executor and control-plane", () => {
       }>;
 
       expect(listedCredentials).toHaveLength(1);
-      expect(listedCredentials[0]?.id).toBe("credential_binding_1");
+      expect(listedCredentials[0]?.id).toBe("auth_binding_1");
 
       const removedCredential = (yield* Effect.tryPromise(() =>
         t.mutation(api.controlPlane.removeCredentialBinding, {
           workspaceId: "ws_1",
-          credentialBindingId: "credential_binding_1",
+          credentialBindingId: "auth_binding_1",
         }),
       )) as {
         removed: boolean;
@@ -1127,8 +1127,8 @@ describe("Convex executor and control-plane", () => {
           t.action(api.controlPlane.upsertCredentialBinding, {
             workspaceId: "ws_cred",
             payload: {
-              id: "credential_binding_linear",
-              credentialId: "cred_linear",
+              id: "auth_binding_linear",
+              credentialId: "conn_linear",
               scopeType: "workspace",
               sourceKey: "source:src_graphql_cred_1",
               provider: "bearer",
@@ -1320,8 +1320,8 @@ describe("Convex executor and control-plane", () => {
           t.action(api.controlPlane.upsertCredentialBinding, {
             workspaceId: "ws_mcp_ingest",
             payload: {
-              id: "credential_binding_mcp",
-              credentialId: "cred_mcp",
+              id: "auth_binding_mcp",
+              credentialId: "conn_mcp",
               scopeType: "workspace",
               sourceKey: "source:src_mcp_ingest_1",
               provider: "bearer",
@@ -1612,7 +1612,7 @@ describe("Convex executor and control-plane", () => {
           t.action(api.controlPlane.upsertCredentialBinding, {
             workspaceId,
             payload: {
-              id: "credential_binding_oauth_runtime_1",
+              id: "auth_binding_oauth_runtime_1",
               credentialId: "conn_oauth_runtime_1",
               scopeType: "workspace",
               sourceKey: `source:${sourceId}`,
