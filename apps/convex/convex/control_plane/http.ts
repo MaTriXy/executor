@@ -1,5 +1,4 @@
 import {
-  ControlPlaneAuthHeaders,
   ControlPlaneService,
   controlPlaneOpenApiSpec,
   makeControlPlaneWebHandler,
@@ -37,11 +36,6 @@ const controlPlaneCorsHeaders = (request: Request): Headers => {
         "authorization",
         "traceparent",
         "b3",
-        ControlPlaneAuthHeaders.accountId,
-        ControlPlaneAuthHeaders.principalProvider,
-        ControlPlaneAuthHeaders.principalSubject,
-        ControlPlaneAuthHeaders.principalEmail,
-        ControlPlaneAuthHeaders.principalDisplayName,
       ].join(", "),
     );
   }
@@ -54,9 +48,9 @@ const withControlPlaneCors = (request: Request, response: Response): Response =>
   const headers = new Headers(response.headers);
   const corsHeaders = controlPlaneCorsHeaders(request);
 
-  for (const [name, value] of corsHeaders.entries()) {
+  corsHeaders.forEach((value, name) => {
     headers.set(name, value);
-  }
+  });
 
   return new Response(response.body, {
     status: response.status,

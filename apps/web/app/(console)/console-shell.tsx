@@ -9,30 +9,15 @@ import { approvalsByWorkspace } from "../../lib/control-plane/atoms";
 
 type ConsoleShellProps = {
   authEnabled: boolean;
-  initialAccountId: string | null;
   initialWorkspaceId: string;
   children: ReactNode;
 };
 
-const browserAccountIdKey = "__EXECUTOR_ACCOUNT_ID__";
-
-type ExecutorWindow = Window & {
-  [browserAccountIdKey]?: string;
-};
-
 export function ConsoleShell({
   authEnabled,
-  initialAccountId,
   initialWorkspaceId,
   children,
 }: ConsoleShellProps) {
-  if (typeof window !== "undefined") {
-    const accountId = initialAccountId?.trim();
-    if (accountId) {
-      (window as ExecutorWindow)[browserAccountIdKey] = accountId;
-    }
-  }
-
   return (
     <WorkspaceProvider initialWorkspaceId={initialWorkspaceId}>
       <ConsoleShellInner authEnabled={authEnabled}>

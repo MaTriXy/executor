@@ -8,7 +8,7 @@ import {
 import { v } from "convex/values";
 import * as Schema from "effect/Schema";
 
-import { mutation, query } from "../_generated/server";
+import { internalMutation, internalQuery } from "../_generated/server";
 
 const decodeApproval = Schema.decodeUnknownSync(ApprovalSchema);
 
@@ -27,7 +27,7 @@ const approvalStatusValidator = v.union(
 const sortApprovals = (approvals: ReadonlyArray<Approval>): Array<Approval> =>
   [...approvals].sort((left, right) => right.requestedAt - left.requestedAt);
 
-export const listApprovals = query({
+export const listApprovals = internalQuery({
   args: {
     workspaceId: v.string(),
   },
@@ -47,7 +47,7 @@ export const listApprovals = query({
   },
 });
 
-export const resolveApproval = mutation({
+export const resolveApproval = internalMutation({
   args: {
     workspaceId: v.string(),
     approvalId: v.string(),

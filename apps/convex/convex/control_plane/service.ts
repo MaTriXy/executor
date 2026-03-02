@@ -5,11 +5,12 @@ import {
 import type { SourceToolSummary } from "@executor-v2/management-api/tools/api";
 import * as Effect from "effect/Effect";
 
-import { api, internal } from "../_generated/api";
+import { internal } from "../_generated/api";
 import type { ActionCtx } from "../_generated/server";
 import { toSourceStoreError } from "./errors";
 
 const runtimeInternal = internal as any;
+runtimeInternal.controlPlane = runtimeInternal.controlPlane ?? runtimeInternal.control_plane;
 const toolPageSize = 250;
 
 const collectWorkspaceToolSummaries = async (
@@ -53,7 +54,7 @@ export const makeConvexControlPlaneService = (
     listSources: (workspaceId) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runQuery(api.controlPlane.listSources, {
+          ctx.runQuery(runtimeInternal.controlPlane.listSources, {
             workspaceId,
           }),
         catch: (cause) => toSourceStoreError("controlPlane.listSources", cause),
@@ -61,7 +62,7 @@ export const makeConvexControlPlaneService = (
     upsertSource: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runAction(api.controlPlane.upsertSource, {
+          ctx.runAction(runtimeInternal.controlPlane.upsertSource, {
             workspaceId: input.workspaceId,
             payload: input.payload,
           }),
@@ -70,7 +71,7 @@ export const makeConvexControlPlaneService = (
     removeSource: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runMutation(api.controlPlane.removeSource, {
+          ctx.runMutation(runtimeInternal.controlPlane.removeSource, {
             workspaceId: input.workspaceId,
             sourceId: input.sourceId,
           }),
@@ -79,7 +80,7 @@ export const makeConvexControlPlaneService = (
     listCredentialBindings: (workspaceId) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runQuery(api.controlPlane.listCredentialBindings, {
+          ctx.runQuery(runtimeInternal.controlPlane.listCredentialBindings, {
             workspaceId,
           }),
         catch: (cause) =>
@@ -88,7 +89,7 @@ export const makeConvexControlPlaneService = (
     upsertCredentialBinding: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runAction(api.controlPlane.upsertCredentialBinding, {
+          ctx.runAction(runtimeInternal.controlPlane.upsertCredentialBinding, {
             workspaceId: input.workspaceId,
             payload: input.payload,
           }),
@@ -98,7 +99,7 @@ export const makeConvexControlPlaneService = (
     removeCredentialBinding: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runMutation(api.controlPlane.removeCredentialBinding, {
+          ctx.runMutation(runtimeInternal.controlPlane.removeCredentialBinding, {
             workspaceId: input.workspaceId,
             credentialBindingId: input.credentialBindingId,
           }),
@@ -108,7 +109,7 @@ export const makeConvexControlPlaneService = (
     listPolicies: (workspaceId) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runQuery(api.controlPlane.listPolicies, {
+          ctx.runQuery(runtimeInternal.controlPlane.listPolicies, {
             workspaceId,
           }),
         catch: (cause) => toSourceStoreError("controlPlane.listPolicies", cause),
@@ -116,7 +117,7 @@ export const makeConvexControlPlaneService = (
     upsertPolicy: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runMutation(api.controlPlane.upsertPolicy, {
+          ctx.runMutation(runtimeInternal.controlPlane.upsertPolicy, {
             workspaceId: input.workspaceId,
             payload: input.payload,
           }),
@@ -125,7 +126,7 @@ export const makeConvexControlPlaneService = (
     removePolicy: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runMutation(api.controlPlane.removePolicy, {
+          ctx.runMutation(runtimeInternal.controlPlane.removePolicy, {
             workspaceId: input.workspaceId,
             policyId: input.policyId,
           }),
@@ -133,26 +134,26 @@ export const makeConvexControlPlaneService = (
       }),
     listOrganizations: () =>
       Effect.tryPromise({
-        try: () => ctx.runQuery(api.controlPlane.listOrganizations, {}),
+        try: () => ctx.runQuery(runtimeInternal.controlPlane.listOrganizations, {}),
         catch: (cause) => toSourceStoreError("controlPlane.listOrganizations", cause),
       }),
     upsertOrganization: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runMutation(api.controlPlane.upsertOrganization, {
+          ctx.runMutation(runtimeInternal.controlPlane.upsertOrganization, {
             payload: input.payload,
           }),
         catch: (cause) => toSourceStoreError("controlPlane.upsertOrganization", cause),
       }),
     listWorkspaces: () =>
       Effect.tryPromise({
-        try: () => ctx.runQuery(api.controlPlane.listWorkspaces, {}),
+        try: () => ctx.runQuery(runtimeInternal.controlPlane.listWorkspaces, {}),
         catch: (cause) => toSourceStoreError("controlPlane.listWorkspaces", cause),
       }),
     upsertWorkspace: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runMutation(api.controlPlane.upsertWorkspace, {
+          ctx.runMutation(runtimeInternal.controlPlane.upsertWorkspace, {
             payload: input.payload,
           }),
         catch: (cause) => toSourceStoreError("controlPlane.upsertWorkspace", cause),
@@ -174,7 +175,7 @@ export const makeConvexControlPlaneService = (
     getToolDetail: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runQuery(api.controlPlane.getToolDetail, {
+          ctx.runQuery(runtimeInternal.controlPlane.getToolDetail, {
             workspaceId: input.workspaceId,
             sourceId: input.sourceId,
             operationHash: input.operationHash,
@@ -184,7 +185,7 @@ export const makeConvexControlPlaneService = (
     listStorageInstances: (workspaceId) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runQuery(api.controlPlane.listStorageInstances, {
+          ctx.runQuery(runtimeInternal.controlPlane.listStorageInstances, {
             workspaceId,
           }),
         catch: (cause) =>
@@ -193,7 +194,7 @@ export const makeConvexControlPlaneService = (
     openStorageInstance: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runMutation(api.controlPlane.openStorageInstance, {
+          ctx.runMutation(runtimeInternal.controlPlane.openStorageInstance, {
             workspaceId: input.workspaceId,
             payload: input.payload,
           }),
@@ -203,7 +204,7 @@ export const makeConvexControlPlaneService = (
     closeStorageInstance: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runMutation(api.controlPlane.closeStorageInstance, {
+          ctx.runMutation(runtimeInternal.controlPlane.closeStorageInstance, {
             workspaceId: input.workspaceId,
             storageInstanceId: input.storageInstanceId,
           }),
@@ -213,7 +214,7 @@ export const makeConvexControlPlaneService = (
     removeStorageInstance: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runMutation(api.controlPlane.removeStorageInstance, {
+          ctx.runMutation(runtimeInternal.controlPlane.removeStorageInstance, {
             workspaceId: input.workspaceId,
             storageInstanceId: input.storageInstanceId,
           }),
@@ -223,7 +224,7 @@ export const makeConvexControlPlaneService = (
     listStorageDirectory: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runQuery(api.controlPlane.listStorageDirectory, {
+          ctx.runQuery(runtimeInternal.controlPlane.listStorageDirectory, {
             workspaceId: input.workspaceId,
             storageInstanceId: input.storageInstanceId,
             payload: input.payload,
@@ -234,7 +235,7 @@ export const makeConvexControlPlaneService = (
     readStorageFile: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runQuery(api.controlPlane.readStorageFile, {
+          ctx.runQuery(runtimeInternal.controlPlane.readStorageFile, {
             workspaceId: input.workspaceId,
             storageInstanceId: input.storageInstanceId,
             payload: input.payload,
@@ -244,7 +245,7 @@ export const makeConvexControlPlaneService = (
     listStorageKv: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runQuery(api.controlPlane.listStorageKv, {
+          ctx.runQuery(runtimeInternal.controlPlane.listStorageKv, {
             workspaceId: input.workspaceId,
             storageInstanceId: input.storageInstanceId,
             payload: input.payload,
@@ -254,7 +255,7 @@ export const makeConvexControlPlaneService = (
     queryStorageSql: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runMutation(api.controlPlane.queryStorageSql, {
+          ctx.runMutation(runtimeInternal.controlPlane.queryStorageSql, {
             workspaceId: input.workspaceId,
             storageInstanceId: input.storageInstanceId,
             payload: input.payload,
@@ -264,7 +265,7 @@ export const makeConvexControlPlaneService = (
     listApprovals: (workspaceId) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runQuery(api.controlPlane.listApprovals, {
+          ctx.runQuery(runtimeInternal.controlPlane.listApprovals, {
             workspaceId,
           }),
         catch: (cause) => toSourceStoreError("controlPlane.listApprovals", cause),
@@ -272,7 +273,7 @@ export const makeConvexControlPlaneService = (
     resolveApproval: (input) =>
       Effect.tryPromise({
         try: () =>
-          ctx.runMutation(api.controlPlane.resolveApproval, {
+          ctx.runMutation(runtimeInternal.controlPlane.resolveApproval, {
             workspaceId: input.workspaceId,
             approvalId: input.approvalId,
             payload: input.payload,

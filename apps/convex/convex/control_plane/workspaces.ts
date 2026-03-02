@@ -3,7 +3,7 @@ import { WorkspaceSchema, type Workspace } from "@executor-v2/schema";
 import { v } from "convex/values";
 import * as Schema from "effect/Schema";
 
-import { mutation, query } from "../_generated/server";
+import { internalMutation, internalQuery } from "../_generated/server";
 
 const decodeWorkspace = Schema.decodeUnknownSync(WorkspaceSchema);
 
@@ -29,7 +29,7 @@ const sortWorkspaces = (workspaces: ReadonlyArray<Workspace>): Array<Workspace> 
     return leftName.localeCompare(rightName);
   });
 
-export const listWorkspaces = query({
+export const listWorkspaces = internalQuery({
   args: {},
   handler: async (ctx): Promise<Array<Workspace>> => {
     const rows = await ctx.db.query("workspaces").collect();
@@ -40,7 +40,7 @@ export const listWorkspaces = query({
   },
 });
 
-export const upsertWorkspace = mutation({
+export const upsertWorkspace = internalMutation({
   args: {
     payload: v.object({
       id: v.optional(v.string()),

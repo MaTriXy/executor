@@ -7,7 +7,7 @@ import {
 import { v } from "convex/values";
 import * as Schema from "effect/Schema";
 
-import { mutation, query } from "../_generated/server";
+import { internalMutation, internalQuery } from "../_generated/server";
 
 const decodeOrganization = Schema.decodeUnknownSync(OrganizationSchema);
 
@@ -41,7 +41,7 @@ const sortOrganizations = (
     return leftName.localeCompare(rightName);
   });
 
-export const listOrganizations = query({
+export const listOrganizations = internalQuery({
   args: {},
   handler: async (ctx): Promise<Array<Organization>> => {
     const rows = await ctx.db.query("organizations").collect();
@@ -52,7 +52,7 @@ export const listOrganizations = query({
   },
 });
 
-export const upsertOrganization = mutation({
+export const upsertOrganization = internalMutation({
   args: {
     payload: v.object({
       id: v.optional(v.string()),

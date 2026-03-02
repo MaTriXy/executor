@@ -4,7 +4,11 @@ import { v } from "convex/values";
 import * as Schema from "effect/Schema";
 
 import { internal } from "../_generated/api";
-import { action, internalQuery, internalMutation, mutation, query } from "../_generated/server";
+import {
+  internalAction,
+  internalMutation,
+  internalQuery,
+} from "../_generated/server";
 
 const runtimeInternal = internal as any;
 
@@ -106,7 +110,7 @@ const sourceStatusValidator = v.union(
   v.literal("error"),
 );
 
-export const listSources = query({
+export const listSources = internalQuery({
   args: {
     workspaceId: v.string(),
   },
@@ -191,7 +195,7 @@ export const upsertSourceRecord = internalMutation({
   },
 });
 
-export const upsertSource = action({
+export const upsertSource = internalAction({
   args: {
     workspaceId: v.string(),
     payload: v.object({
@@ -313,7 +317,7 @@ export const setSourceIngestState = internalMutation({
   },
 });
 
-export const removeSource = mutation({
+export const removeSource = internalMutation({
   args: {
     workspaceId: v.string(),
     sourceId: v.string(),

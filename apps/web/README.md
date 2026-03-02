@@ -10,9 +10,14 @@ Run:
 - `bun run --cwd apps/web dev`
 - Open `http://127.0.0.1:3000`
 
-By default, control-plane API calls derive from the first available value in:
-`NEXT_PUBLIC_CONTROL_PLANE_BASE_URL`, `CONTROL_PLANE_SERVER_BASE_URL`, `CONTROL_PLANE_UPSTREAM_URL`, `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_URL`.
+By default, browser control-plane API calls go through the same-origin proxy at
+`/api/control-plane`.
+
+The proxy forwards to the first available upstream value in:
+`CONTROL_PLANE_SERVER_BASE_URL`, `CONTROL_PLANE_UPSTREAM_URL`, `NEXT_PUBLIC_CONVEX_URL`, `CONVEX_URL`.
 If none are set, fallback is `http://127.0.0.1:8788`.
+
+If needed, `NEXT_PUBLIC_CONTROL_PLANE_BASE_URL` can override the browser base URL.
 
 MCP install URL generation:
 
@@ -27,5 +32,4 @@ WorkOS auth setup (optional but recommended):
 - `WORKOS_COOKIE_PASSWORD` (32+ chars)
 - `WORKOS_REDIRECT_URI` or `NEXT_PUBLIC_WORKOS_REDIRECT_URI` (for example `http://localhost:4312/callback`)
 
-When WorkOS is configured, the app requires sign-in and forwards the authenticated WorkOS user id to control-plane as `x-executor-account-id`.
-For local non-WorkOS testing, you can still set `NEXT_PUBLIC_CONTROL_PLANE_ACCOUNT_ID` to send a static account id.
+When WorkOS is configured, the app requires sign-in and the server proxy forwards the authenticated WorkOS access token to control-plane as a bearer token (`Authorization: Bearer ...`).

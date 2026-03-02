@@ -1,16 +1,17 @@
 import {
   ControlPlaneActorResolverLive,
   deriveWorkspaceMembershipsForPrincipal,
-  readPrincipalFromHeaders,
-  requirePrincipalFromHeaders,
 } from "@executor-v2/management-api";
 import { ActorUnauthenticatedError, makeActor } from "@executor-v2/domain";
 import {
   OrganizationMembershipSchema,
+  PrincipalSchema,
+  type Principal,
   WorkspaceSchema,
   type OrganizationMembership,
   type Workspace,
 } from "@executor-v2/schema";
+import { type UserIdentity } from "convex/server";
 import { v } from "convex/values";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -26,6 +27,7 @@ const decodeWorkspace = Schema.decodeUnknownSync(WorkspaceSchema);
 const decodeOrganizationMembership = Schema.decodeUnknownSync(
   OrganizationMembershipSchema,
 );
+const decodePrincipal = Schema.decodeUnknownSync(PrincipalSchema);
 
 const stripConvexSystemFields = (
   value: Record<string, unknown>,
@@ -225,11 +227,72 @@ const runQueryEffect = <A>(
       }),
   });
 
+const inferPrincipalProvider = (
+  identity: UserIdentity,
+): Principal["provider"] =>
+  identity.issuer.trim().toLowerCase().includes("workos")
+    ? "workos"
+    : "local";
+
+const toPrincipalFromIdentity = (
+  identity: UserIdentity,
+): Principal => {
+  const accountId = identity.subject.trim();
+
+  if (accountId.length === 0) {
+    throw new ActorUnauthenticatedError({
+      message: "Authenticated identity subject is required",
+    });
+  }
+
+  const provider = inferPrincipalProvider(identity);
+  const tokenIdentifier = identity.tokenIdentifier.trim();
+
+  try {
+    return decodePrincipal({
+      accountId,
+      provider,
+      subject: tokenIdentifier.length > 0 ? tokenIdentifier : `${provider}:${accountId}`,
+      email: identity.email?.trim() ?? null,
+      displayName: identity.name?.trim() ?? null,
+    });
+  } catch (cause) {
+    throw new ActorUnauthenticatedError({
+      message: `Failed decoding authenticated principal: ${String(cause)}`,
+    });
+  }
+};
+
+const resolveAuthenticatedPrincipal = (
+  ctx: ActionCtx,
+): Effect.Effect<Principal, ActorUnauthenticatedError> =>
+  Effect.tryPromise({
+    try: async () => {
+      const identity = await ctx.auth.getUserIdentity();
+
+      if (identity === null) {
+        throw new ActorUnauthenticatedError({
+          message: "Authenticated principal is required",
+        });
+      }
+
+      return toPrincipalFromIdentity(identity);
+    },
+    catch: (cause) =>
+      cause instanceof ActorUnauthenticatedError
+        ? cause
+        : new ActorUnauthenticatedError({
+            message: `Failed resolving authenticated principal: ${String(cause)}`,
+          }),
+  });
+
 export const ConvexControlPlaneActorLive = (ctx: ActionCtx) =>
   ControlPlaneActorResolverLive({
     resolveActor: (input) =>
       Effect.gen(function* () {
-        const principal = yield* requirePrincipalFromHeaders(input.headers);
+        void input;
+
+        const principal = yield* resolveAuthenticatedPrincipal(ctx);
 
         const organizationMemberships = yield* runQueryEffect(
           "organizationMembership.list",
@@ -267,17 +330,9 @@ export const ConvexControlPlaneActorLive = (ctx: ActionCtx) =>
       }),
     resolveWorkspaceActor: (input) =>
       Effect.gen(function* () {
-        const principalFromHeaders = yield* readPrincipalFromHeaders(input.headers);
-        const fallbackAccountId = input.workspaceId.startsWith("ws_")
-          ? input.workspaceId.slice(3)
-          : input.workspaceId;
-        const principal = principalFromHeaders ?? {
-          accountId: fallbackAccountId,
-          provider: "local" as const,
-          subject: `local:${fallbackAccountId}`,
-          email: null,
-          displayName: null,
-        };
+        void input.headers;
+
+        const principal = yield* resolveAuthenticatedPrincipal(ctx);
 
         let workspace = yield* runQueryEffect("workspace.read", () =>
           ctx.runQuery(internal.control_plane.actor.getWorkspaceForActor, {

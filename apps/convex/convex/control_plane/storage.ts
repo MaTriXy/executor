@@ -10,9 +10,8 @@ import { v } from "convex/values";
 import * as Schema from "effect/Schema";
 
 import {
+  internalQuery,
   internalMutation,
-  mutation,
-  query,
   type MutationCtx,
   type QueryCtx,
 } from "../_generated/server";
@@ -547,7 +546,7 @@ const executeSqlForStorage = (
   throw new Error("Unsupported SQL statement for Convex storage inspector");
 };
 
-export const listStorageInstances = query({
+export const listStorageInstances = internalQuery({
   args: {
     workspaceId: v.string(),
   },
@@ -584,7 +583,7 @@ export const listStorageInstances = query({
   },
 });
 
-export const openStorageInstance = mutation({
+export const openStorageInstance = internalMutation({
   args: {
     workspaceId: v.string(),
     payload: v.object({
@@ -648,7 +647,7 @@ export const openStorageInstance = mutation({
   },
 });
 
-export const closeStorageInstance = mutation({
+export const closeStorageInstance = internalMutation({
   args: {
     workspaceId: v.string(),
     storageInstanceId: v.string(),
@@ -687,7 +686,7 @@ export const closeStorageInstance = mutation({
   },
 });
 
-export const removeStorageInstance = mutation({
+export const removeStorageInstance = internalMutation({
   args: {
     workspaceId: v.string(),
     storageInstanceId: v.string(),
@@ -749,7 +748,7 @@ export const removeStorageInstance = mutation({
   },
 });
 
-export const listStorageDirectory = query({
+export const listStorageDirectory = internalQuery({
   args: {
     workspaceId: v.string(),
     storageInstanceId: v.string(),
@@ -869,7 +868,7 @@ export const listStorageDirectory = query({
   },
 });
 
-export const readStorageFile = query({
+export const readStorageFile = internalQuery({
   args: {
     workspaceId: v.string(),
     storageInstanceId: v.string(),
@@ -914,7 +913,7 @@ export const readStorageFile = query({
   },
 });
 
-export const listStorageKv = query({
+export const listStorageKv = internalQuery({
   args: {
     workspaceId: v.string(),
     storageInstanceId: v.string(),
@@ -961,7 +960,7 @@ export const listStorageKv = query({
   },
 });
 
-export const queryStorageSql = mutation({
+export const queryStorageSql = internalMutation({
   args: {
     workspaceId: v.string(),
     storageInstanceId: v.string(),

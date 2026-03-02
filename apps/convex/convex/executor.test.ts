@@ -3,11 +3,14 @@ import { extractOpenApiManifest } from "@executor-v2/management-api";
 import { convexTest } from "convex-test";
 import * as Effect from "effect/Effect";
 
-import { api, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { executeRunImpl } from "./executor";
 import schema from "./schema";
 
 const runtimeInternal = internal as any;
+const api = {
+  controlPlane: runtimeInternal.controlPlane ?? runtimeInternal.control_plane,
+} as any;
 
 const setup = () =>
   convexTest(schema, {

@@ -15,12 +15,9 @@ import * as Schema from "effect/Schema";
 import { internal } from "../_generated/api";
 import { decryptSecretValue, encryptSecretValue } from "../credential_crypto";
 import {
-  action,
   internalAction,
   internalMutation,
   internalQuery,
-  mutation,
-  query,
   type MutationCtx,
   type QueryCtx,
 } from "../_generated/server";
@@ -380,7 +377,7 @@ export const resolveSourceCredentialHeadersForIngest = internalAction({
   },
 });
 
-export const listCredentialBindings = query({
+export const listCredentialBindings = internalQuery({
   args: {
     workspaceId: v.string(),
   },
@@ -488,7 +485,7 @@ export const upsertCredentialBindingRecord = internalMutation({
   },
 });
 
-export const upsertCredentialBinding = action({
+export const upsertCredentialBinding = internalAction({
   args: {
     workspaceId: v.string(),
     payload: sourceCredentialBindingPayloadValidator,
@@ -522,7 +519,7 @@ export const upsertCredentialBinding = action({
   },
 });
 
-export const removeCredentialBinding = mutation({
+export const removeCredentialBinding = internalMutation({
   args: {
     workspaceId: v.string(),
     credentialBindingId: v.string(),

@@ -8,7 +8,7 @@ import { v } from "convex/values";
 import * as Schema from "effect/Schema";
 import { internal } from "../_generated/api";
 
-import { action, internalQuery, query } from "../_generated/server";
+import { internalAction, internalQuery } from "../_generated/server";
 
 const decodeSource = Schema.decodeUnknownSync(SourceSchema);
 const runtimeInternal = internal as any;
@@ -298,7 +298,7 @@ export const listWorkspaceToolSummaryPage = internalQuery({
   },
 });
 
-export const listWorkspaceTools = action({
+export const listWorkspaceTools = internalAction({
   args: {
     workspaceId: v.string(),
   },
@@ -329,7 +329,7 @@ export const listWorkspaceTools = action({
   },
 });
 
-export const listSourceTools = action({
+export const listSourceTools = internalAction({
   args: {
     workspaceId: v.string(),
     sourceId: v.string(),
@@ -363,7 +363,7 @@ export const listSourceTools = action({
   },
 });
 
-export const getToolDetail = query({
+export const getToolDetail = internalQuery({
   args: {
     workspaceId: v.string(),
     sourceId: v.string(),

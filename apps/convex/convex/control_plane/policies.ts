@@ -3,7 +3,7 @@ import { PolicySchema, type Policy } from "@executor-v2/schema";
 import { v } from "convex/values";
 import * as Schema from "effect/Schema";
 
-import { mutation, query } from "../_generated/server";
+import { internalMutation, internalQuery } from "../_generated/server";
 
 const decodePolicy = Schema.decodeUnknownSync(PolicySchema);
 
@@ -35,7 +35,7 @@ const sortPolicies = (policies: ReadonlyArray<Policy>): Array<Policy> =>
     return leftPattern.localeCompare(rightPattern);
   });
 
-export const listPolicies = query({
+export const listPolicies = internalQuery({
   args: {
     workspaceId: v.string(),
   },
@@ -51,7 +51,7 @@ export const listPolicies = query({
   },
 });
 
-export const upsertPolicy = mutation({
+export const upsertPolicy = internalMutation({
   args: {
     workspaceId: v.string(),
     payload: v.object({
@@ -93,7 +93,7 @@ export const upsertPolicy = mutation({
   },
 });
 
-export const removePolicy = mutation({
+export const removePolicy = internalMutation({
   args: {
     workspaceId: v.string(),
     policyId: v.string(),
