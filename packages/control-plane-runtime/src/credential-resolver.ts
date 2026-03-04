@@ -163,7 +163,7 @@ const buildSecretHeaders = (
   return {};
 };
 
-export const createPmResolveToolCredentials = (
+export const createRuntimeHostResolveToolCredentials = (
   rows: CredentialResolverRows,
   secretMaterialStore: SecretMaterialStore,
 ): ResolveToolCredentials =>

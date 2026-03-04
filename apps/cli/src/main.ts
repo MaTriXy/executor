@@ -36,20 +36,6 @@ type WorkspaceRecord = {
   id: string;
 };
 
-type SourceRecord = {
-  id: string;
-  name: string;
-  endpoint: string;
-  configJson: string;
-};
-
-type SourceToolSummaryRecord = {
-  toolId: string;
-  method: string;
-  path: string;
-  name: string;
-};
-
 type DeviceAuthorizationResponse = {
   device_code: string;
   user_code: string;
@@ -78,10 +64,6 @@ type CommonTargetOptions = {
 
 const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:8788";
 const DEFAULT_WORKOS_AUTH_BASE_URL = "https://api.workos.com";
-const DEFAULT_GITHUB_OPENAPI_SPEC_URL =
-  "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.json";
-const DEFAULT_GITHUB_API_BASE_URL = "https://api.github.com";
-const DEFAULT_GITHUB_OPENAPI_SOURCE_ID = "src_github_openapi";
 const CONFIG_PATH = join(homedir(), ".config", "executor", "cli.json");
 
 const toErrorMessage = (cause: unknown): string =>
@@ -518,6 +500,8 @@ class ExecutorServerClient {
     const childEnv = {
       ...cleanEnv(),
       PORT: localPort,
+      EXECUTOR_RUNTIME_KIND:
+        process.env.EXECUTOR_LOCAL_RUNTIME_KIND?.trim() || "local-inproc",
       PM_RUNTIME_KIND:
         process.env.EXECUTOR_LOCAL_RUNTIME_KIND?.trim() || "local-inproc",
     };
@@ -595,87 +579,6 @@ const ensureWorkspaceId = async (
   config.workspaceId = workspaceId;
   await saveConfig(config);
   return workspaceId;
-};
-
-const deriveSourceName = (kind: string, endpoint: string): string => {
-  try {
-    const url = new URL(endpoint);
-    const host = url.hostname.replace(/^api\./, "");
-    return `${kind}:${host}`;
-  } catch {
-    return `${kind}:source`;
-  }
-};
-
-const bootstrapOpenApiSource = async (input: {
-  client: ExecutorServerClient;
-  config: ExecutorCliConfig;
-  workspaceOverride?: string;
-  specUrl: string;
-  baseUrl: string;
-  name?: string;
-  sourceId?: string;
-}): Promise<{
-  workspaceId: string;
-  source: SourceRecord;
-  tools: Array<SourceToolSummaryRecord>;
-  sampleToolPath: string | null;
-}> => {
-  const workspaceId = await ensureWorkspaceId(
-    input.client,
-    input.config,
-    input.workspaceOverride,
-  );
-  const normalizedSpecUrl = input.specUrl.trim();
-  const normalizedBaseUrl = input.baseUrl.trim();
-
-  if (normalizedSpecUrl.length === 0) {
-    throw new Error("OpenAPI bootstrap requires --spec-url.");
-  }
-
-  if (normalizedBaseUrl.length === 0) {
-    throw new Error("OpenAPI bootstrap requires --source-base-url.");
-  }
-
-  const source = await input.client.runControlPlane((api) =>
-    api.sources.upsert({
-      path: { workspaceId },
-      payload: {
-        ...(input.sourceId && input.sourceId.trim().length > 0
-          ? { id: input.sourceId.trim() }
-          : {}),
-        name:
-          input.name && input.name.trim().length > 0
-            ? input.name.trim()
-            : deriveSourceName("openapi", normalizedBaseUrl),
-        kind: "openapi",
-        endpoint: normalizedSpecUrl,
-        status: "connected",
-        enabled: true,
-        configJson: JSON.stringify({ baseUrl: normalizedBaseUrl }),
-      },
-    }),
-  ) as SourceRecord;
-
-  const tools = await input.client.runControlPlane((api) =>
-    api.tools.listSourceTools({
-      path: {
-        workspaceId,
-        sourceId: source.id,
-      },
-    }),
-  ) as Array<SourceToolSummaryRecord>;
-
-  const sampleToolPath = tools[0]?.toolId
-    ? `source.${source.id}.${tools[0].toolId}`
-    : null;
-
-  return {
-    workspaceId,
-    source,
-    tools,
-    sampleToolPath,
-  };
 };
 
 const postForm = async (
@@ -859,8 +762,9 @@ const commonTargetOptions = () => ({
 });
 
 const startEmbeddedLocalServer = async (port: number): Promise<void> => {
-  process.env.PM_RUNTIME_KIND =
+  process.env.EXECUTOR_RUNTIME_KIND =
     process.env.EXECUTOR_LOCAL_RUNTIME_KIND?.trim() || "local-inproc";
+  process.env.PM_RUNTIME_KIND = process.env.EXECUTOR_RUNTIME_KIND;
 
   const {
     createLocalPrincipal,
@@ -1254,134 +1158,8 @@ const runExecuteCommand = Command.make(
   Command.withDescription("Execute TypeScript code through Executor runtime"),
 );
 
-const runBootstrapOpenApiCommand = Command.make(
-  "openapi",
-  {
-    ...commonTargetOptions(),
-    specUrl: Options.text("spec-url"),
-    sourceBaseUrl: Options.text("source-base-url"),
-    name: Options.text("name").pipe(Options.optional),
-    sourceId: Options.text("source-id").pipe(Options.optional),
-  },
-  (input) =>
-    Effect.tryPromise({
-      try: async () => {
-        const common: CommonTargetOptions = {
-          target: input.target,
-          workspace: input.workspace,
-          baseUrl: input.baseUrl,
-          json: input.json,
-        };
-
-        await withClient(common, async ({ client, config, workspaceOverride, asJson }) => {
-          const setup = await bootstrapOpenApiSource({
-            client,
-            config,
-            workspaceOverride,
-            specUrl: input.specUrl,
-            baseUrl: input.sourceBaseUrl,
-            name: optionToUndefined(input.name),
-            sourceId: optionToUndefined(input.sourceId),
-          });
-
-          printOutput(
-            {
-              ok: true,
-              workspaceId: setup.workspaceId,
-              source: {
-                id: setup.source.id,
-                name: setup.source.name,
-                endpoint: setup.source.endpoint,
-                configJson: setup.source.configJson,
-              },
-              toolCount: setup.tools.length,
-              sampleToolPath: setup.sampleToolPath,
-            },
-            asJson,
-          );
-        });
-      },
-      catch: toErrorMessage,
-    }),
-).pipe(
-  Command.withDescription("Bootstrap an OpenAPI source with runtime base URL"),
-);
-
-const runBootstrapGithubCommand = Command.make(
-  "github",
-  {
-    ...commonTargetOptions(),
-    name: Options.text("name").pipe(Options.optional),
-    sourceId: Options.text("source-id").pipe(Options.optional),
-    specUrl: Options.text("spec-url").pipe(Options.withDefault(DEFAULT_GITHUB_OPENAPI_SPEC_URL)),
-    sourceBaseUrl: Options.text("source-base-url").pipe(Options.withDefault(DEFAULT_GITHUB_API_BASE_URL)),
-  },
-  (input) =>
-    Effect.tryPromise({
-      try: async () => {
-        const common: CommonTargetOptions = {
-          target: input.target,
-          workspace: input.workspace,
-          baseUrl: input.baseUrl,
-          json: input.json,
-        };
-
-        await withClient(common, async ({ client, config, workspaceOverride, asJson }) => {
-          const setup = await bootstrapOpenApiSource({
-            client,
-            config,
-            workspaceOverride,
-            specUrl: input.specUrl,
-            baseUrl: input.sourceBaseUrl,
-            name: optionToUndefined(input.name) ?? "github:openapi",
-            sourceId: optionToUndefined(input.sourceId) ?? DEFAULT_GITHUB_OPENAPI_SOURCE_ID,
-          });
-
-          const suggestedTool =
-            setup.tools.find((tool) =>
-              tool.toolId.includes("issues-and-pull-requests"),
-            )
-            ?? setup.tools[0]
-            ?? null;
-
-          printOutput(
-            {
-              ok: true,
-              workspaceId: setup.workspaceId,
-              source: {
-                id: setup.source.id,
-                name: setup.source.name,
-                endpoint: setup.source.endpoint,
-                configJson: setup.source.configJson,
-              },
-              toolCount: setup.tools.length,
-              suggestedToolPath: suggestedTool
-                ? `source.${setup.source.id}.${suggestedTool.toolId}`
-                : null,
-              executeHint: suggestedTool
-                ? `executor run execute --code \"return await tools['source.${setup.source.id}.${suggestedTool.toolId}']({ q: 'repo:owner/repo is:issue state:open', per_page: 5 });\"`
-                : null,
-            },
-            asJson,
-          );
-        });
-      },
-      catch: toErrorMessage,
-    }),
-).pipe(
-  Command.withDescription("Bootstrap GitHub OpenAPI source for public issue queries"),
-);
-
-const runBootstrapCommand = Command.make("bootstrap").pipe(
-  Command.withSubcommands([
-    runBootstrapOpenApiCommand,
-    runBootstrapGithubCommand,
-  ] as any),
-  Command.withDescription("Bootstrap source setup shortcuts for execution workflows"),
-);
-
 const runCommand = Command.make("run").pipe(
-  Command.withSubcommands([runExecuteCommand, runBootstrapCommand] as any),
+  Command.withSubcommands([runExecuteCommand] as any),
   Command.withDescription("Code execution commands"),
 );
 

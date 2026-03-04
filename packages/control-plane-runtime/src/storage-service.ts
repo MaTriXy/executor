@@ -136,7 +136,7 @@ const loadStorageScope = (
     }),
   );
 
-export const createPmStorageService = (
+export const createRuntimeHostStorageService = (
   rows: StorageRows,
   options: {
     stateRootDir: string;

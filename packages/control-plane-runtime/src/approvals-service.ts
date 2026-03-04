@@ -47,14 +47,14 @@ const toPersistentApprovalRecord = (approval: Approval): PersistentToolApprovalR
   reason: approval.reason,
 });
 
-export type PmPersistentToolApprovalPolicyOptions = {
+export type RuntimeHostPersistentToolApprovalPolicyOptions = {
   requireApprovals?: boolean;
   retryAfterMs?: number;
 };
 
-export const createPmPersistentToolApprovalPolicy = (
+export const createRuntimeHostPersistentToolApprovalPolicy = (
   rows: ApprovalRows,
-  options: PmPersistentToolApprovalPolicyOptions = {},
+  options: RuntimeHostPersistentToolApprovalPolicyOptions = {},
 ): ToolApprovalPolicy => {
   const store: PersistentToolApprovalStore = {
     findByRunAndCall: (input) =>
@@ -106,7 +106,7 @@ export const createPmPersistentToolApprovalPolicy = (
   });
 };
 
-export const createPmApprovalsService = (
+export const createRuntimeHostApprovalsService = (
   rows: ApprovalRows,
 ): ControlPlaneApprovalsServiceShape =>
   makeControlPlaneApprovalsService({

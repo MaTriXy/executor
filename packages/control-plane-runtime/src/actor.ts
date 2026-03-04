@@ -84,14 +84,17 @@ const resolveActorFromSnapshot = (
     });
   });
 
-export const PmActorLive = (rows: ActorRows) =>
+export const RuntimeHostActorLive = (rows: ActorRows) =>
   {
+    const localAdminFallbackValue =
+      process.env.EXECUTOR_RUNTIME_ALLOW_LOCAL_ADMIN?.trim().toLowerCase()
+      ?? process.env.PM_ALLOW_LOCAL_ADMIN?.trim().toLowerCase()
+      ?? "";
+
     const localAdminFallbackEnabled =
-      (process.env.PM_ALLOW_LOCAL_ADMIN?.trim().toLowerCase() ?? "") === ""
+      localAdminFallbackValue === ""
         ? process.env.NODE_ENV !== "production"
-        : ["1", "true", "yes"].includes(
-            process.env.PM_ALLOW_LOCAL_ADMIN?.trim().toLowerCase() ?? "",
-          );
+        : ["1", "true", "yes"].includes(localAdminFallbackValue);
 
     return ControlPlaneActorResolverLive({
       resolveActor: (input) => resolveActorFromSnapshot(rows, input.headers, localAdminFallbackEnabled),

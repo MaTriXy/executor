@@ -30,19 +30,19 @@ import {
   type ToolRegistryDiscoverOutput,
 } from "@executor-v2/engine";
 import {
-  PmActorLive,
+  RuntimeHostActorLive,
   createKeychainSecretMaterialStore,
-  createPmApprovalsService,
-  createPmCredentialsService,
-  createPmExecuteRuntimeRun,
-  createPmMcpHandler,
-  createPmOrganizationsService,
-  createPmPersistentToolApprovalPolicy,
-  createPmPoliciesService,
-  createPmResolveToolCredentials,
-  createPmStorageService,
-  createPmToolsService,
-  createPmWorkspacesService,
+  createRuntimeHostApprovalsService,
+  createRuntimeHostCredentialsService,
+  createRuntimeHostExecuteRuntimeRun,
+  createRuntimeHostMcpHandler,
+  createRuntimeHostOrganizationsService,
+  createRuntimeHostPersistentToolApprovalPolicy,
+  createRuntimeHostPoliciesService,
+  createRuntimeHostResolveToolCredentials,
+  createRuntimeHostStorageService,
+  createRuntimeHostToolsService,
+  createRuntimeHostWorkspacesService,
   createSqlSecretMaterialStore,
   parseSecretMaterialBackendKind,
 } from "@executor-v2/control-plane-runtime";
@@ -585,25 +585,25 @@ const createControlPlaneRuntime = async (): Promise<ControlPlaneRuntime> => {
   ];
   const runtimeAdapters = makeRuntimeAdapterRegistry(runtimeAdapterList);
   const defaultRuntimeKind =
-    webServerEnvironment.pmRuntimeKind
+    webServerEnvironment.executorRuntimeKind
     ?? runtimeAdapterList[0]?.kind
     ?? "local-inproc";
-  const requireToolApprovals = webServerEnvironment.pmRequireToolApprovals;
+  const requireToolApprovals = webServerEnvironment.executorRuntimeRequireToolApprovals;
   const defaultToolExposureMode =
-    parseExecuteToolExposureMode(webServerEnvironment.pmToolExposureMode)
+    parseExecuteToolExposureMode(webServerEnvironment.executorRuntimeToolExposureMode)
     ?? defaultExecuteToolExposureMode;
   const toolProviderRegistry = makeToolProviderRegistry([
     makeOpenApiToolProvider(),
     makeMcpToolProvider(),
     makeGraphqlToolProvider(),
   ]);
-  const persistentApprovalPolicy = createPmPersistentToolApprovalPolicy(
+  const persistentApprovalPolicy = createRuntimeHostPersistentToolApprovalPolicy(
     persistence.rows,
     {
       requireApprovals: requireToolApprovals,
     },
   );
-  const resolveCredentials = createPmResolveToolCredentials(
+  const resolveCredentials = createRuntimeHostResolveToolCredentials(
     persistence.rows,
     secretMaterialStore,
   );
@@ -722,20 +722,20 @@ const createControlPlaneRuntime = async (): Promise<ControlPlaneRuntime> => {
 
   const controlPlaneService = makeControlPlaneService({
     sources: sourcesService,
-    credentials: createPmCredentialsService(persistence.rows, secretMaterialStore),
-    policies: createPmPoliciesService(persistence.rows),
-    organizations: createPmOrganizationsService(persistence.rows),
-    workspaces: createPmWorkspacesService(persistence.rows),
-    tools: createPmToolsService(sourceStore, toolArtifactStore),
-    storage: createPmStorageService(persistence.rows, {
+    credentials: createRuntimeHostCredentialsService(persistence.rows, secretMaterialStore),
+    policies: createRuntimeHostPoliciesService(persistence.rows),
+    organizations: createRuntimeHostOrganizationsService(persistence.rows),
+    workspaces: createRuntimeHostWorkspacesService(persistence.rows),
+    tools: createRuntimeHostToolsService(sourceStore, toolArtifactStore),
+    storage: createRuntimeHostStorageService(persistence.rows, {
       stateRootDir,
     }),
-    approvals: createPmApprovalsService(persistence.rows),
+    approvals: createRuntimeHostApprovalsService(persistence.rows),
   });
 
   const controlPlaneWebHandler = makeControlPlaneWebHandler(
     Layer.succeed(ControlPlaneService, controlPlaneService),
-    PmActorLive(persistence.rows),
+    RuntimeHostActorLive(persistence.rows),
   );
 
   const rememberRunWorkspace = (runId: string, workspaceId: string): void => {
@@ -772,7 +772,7 @@ const createControlPlaneRuntime = async (): Promise<ControlPlaneRuntime> => {
       toolProviderRegistry,
       approvalPolicy: persistentApprovalPolicy,
     });
-    const executeRuntimeRun = createPmExecuteRuntimeRun({
+    const executeRuntimeRun = createRuntimeHostExecuteRuntimeRun({
       defaultRuntimeKind,
       runtimeAdapters,
       toolRegistry,
@@ -784,7 +784,7 @@ const createControlPlaneRuntime = async (): Promise<ControlPlaneRuntime> => {
         return runId;
       },
     });
-    const next = createPmMcpHandler(runExecutor.executeRun, {
+    const next = createRuntimeHostMcpHandler(runExecutor.executeRun, {
       toolRegistry,
       defaultToolExposureMode,
     });

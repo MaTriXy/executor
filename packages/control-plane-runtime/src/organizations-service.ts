@@ -33,7 +33,7 @@ const sortOrganizations = (
     return leftName.localeCompare(rightName);
   });
 
-export const createPmOrganizationsService = (
+export const createRuntimeHostOrganizationsService = (
   rows: OrganizationRows,
 ): ControlPlaneOrganizationsServiceShape =>
   makeControlPlaneOrganizationsService({

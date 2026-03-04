@@ -141,7 +141,7 @@ const listSourceTools = (
     return yield* parseArtifactManifest(source, artifact);
   });
 
-export const createPmToolsService = (
+export const createRuntimeHostToolsService = (
   sourceStore: SourceStore,
   toolArtifactStore: ToolArtifactStore,
 ): ControlPlaneToolsServiceShape =>

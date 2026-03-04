@@ -25,7 +25,7 @@ const sortWorkspaces = (workspaces: ReadonlyArray<Workspace>): Array<Workspace> 
     return leftName.localeCompare(rightName);
   });
 
-export const createPmWorkspacesService = (
+export const createRuntimeHostWorkspacesService = (
   rows: WorkspaceRows,
 ): ControlPlaneWorkspacesServiceShape =>
   makeControlPlaneWorkspacesService({

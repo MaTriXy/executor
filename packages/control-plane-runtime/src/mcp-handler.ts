@@ -14,7 +14,7 @@ import {
 import { handleMcpHttpRequest } from "@executor-v2/mcp-gateway";
 import * as Effect from "effect/Effect";
 
-export type PmMcpHandlerOptions = {
+export type RuntimeHostMcpHandlerOptions = {
   toolRegistry: ToolRegistry;
   defaultToolExposureMode?: ExecuteToolExposureMode;
 };
@@ -48,9 +48,9 @@ const resolveExecuteToolDescription = async (
   }
 };
 
-export const createPmMcpHandler = (
+export const createRuntimeHostMcpHandler = (
   executeRun: (input: ExecuteRunInput) => Effect.Effect<ExecuteRunResult>,
-  options: PmMcpHandlerOptions,
+  options: RuntimeHostMcpHandlerOptions,
 ): ((request: Request) => Promise<Response>) => {
   const runClient = createExecutorRunClient((input) =>
     Effect.runPromise(executeRun(input)),
@@ -67,7 +67,7 @@ export const createPmMcpHandler = (
     );
 
     return handleMcpHttpRequest(request, {
-      serverName: "executor-v2-pm",
+      serverName: "executor-v2-runtime-host",
       serverVersion: "0.0.0",
       runClient,
       executeToolDescription,

@@ -8,9 +8,18 @@ const webServerEnvConfig = configSchema("WebServerEnvironment", {
     env: "CONTROL_PLANE_POSTGRES_CONNECTION_TARGET",
     optional: true,
   }),
-  pmRuntimeKind: server({ env: "PM_RUNTIME_KIND", optional: true }),
-  pmRequireToolApprovals: server({ env: "PM_REQUIRE_TOOL_APPROVALS", optional: true }),
-  pmToolExposureMode: server({ env: "PM_TOOL_EXPOSURE_MODE", optional: true }),
+  executorRuntimeKind: server({ env: "EXECUTOR_RUNTIME_KIND", optional: true }),
+  legacyPmRuntimeKind: server({ env: "PM_RUNTIME_KIND", optional: true }),
+  executorRuntimeRequireToolApprovals: server({
+    env: "EXECUTOR_RUNTIME_REQUIRE_TOOL_APPROVALS",
+    optional: true,
+  }),
+  legacyPmRequireToolApprovals: server({ env: "PM_REQUIRE_TOOL_APPROVALS", optional: true }),
+  executorRuntimeToolExposureMode: server({
+    env: "EXECUTOR_RUNTIME_TOOL_EXPOSURE_MODE",
+    optional: true,
+  }),
+  legacyPmToolExposureMode: server({ env: "PM_TOOL_EXPOSURE_MODE", optional: true }),
   cloudflareSandboxCallbackSecret: server({
     env: "CLOUDFLARE_SANDBOX_CALLBACK_SECRET",
     optional: true,
@@ -36,14 +45,18 @@ const webServerEnvConfig = configSchema("WebServerEnvironment", {
 });
 
 const env = webServerEnvConfig.server;
+const executorRuntimeRequireToolApprovalsRaw =
+  trim(env.executorRuntimeRequireToolApprovals)
+  ?? trim(env.legacyPmRequireToolApprovals);
 
 export const webServerEnvironment = {
   nodeEnv: trim(env.nodeEnv) ?? "development",
   databaseUrl: trim(env.databaseUrl),
   controlPlanePostgresConnectionTarget: trim(env.controlPlanePostgresConnectionTarget)?.toLowerCase(),
-  pmRuntimeKind: trim(env.pmRuntimeKind),
-  pmRequireToolApprovals: isTruthy(env.pmRequireToolApprovals),
-  pmToolExposureMode: trim(env.pmToolExposureMode),
+  executorRuntimeKind: trim(env.executorRuntimeKind) ?? trim(env.legacyPmRuntimeKind),
+  executorRuntimeRequireToolApprovals: isTruthy(executorRuntimeRequireToolApprovalsRaw),
+  executorRuntimeToolExposureMode:
+    trim(env.executorRuntimeToolExposureMode) ?? trim(env.legacyPmToolExposureMode),
   cloudflareSandboxCallbackSecret: trim(env.cloudflareSandboxCallbackSecret),
   executorPublicOrigin: trim(env.executorPublicOrigin),
   vercelProjectProductionUrl: trim(env.vercelProjectProductionUrl),

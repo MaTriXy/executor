@@ -1,14 +1,14 @@
-export { PmActorLive } from "./actor";
+export { RuntimeHostActorLive } from "./actor";
 export {
-  createPmApprovalsService,
-  createPmPersistentToolApprovalPolicy,
+  createRuntimeHostApprovalsService,
+  createRuntimeHostPersistentToolApprovalPolicy,
 } from "./approvals-service";
-export { createPmResolveToolCredentials } from "./credential-resolver";
-export { createPmCredentialsService } from "./credentials-service";
-export { createPmMcpHandler } from "./mcp-handler";
-export { createPmOrganizationsService } from "./organizations-service";
-export { createPmPoliciesService } from "./policies-service";
-export { createPmExecuteRuntimeRun } from "./runtime-execution-port";
+export { createRuntimeHostResolveToolCredentials } from "./credential-resolver";
+export { createRuntimeHostCredentialsService } from "./credentials-service";
+export { createRuntimeHostMcpHandler } from "./mcp-handler";
+export { createRuntimeHostOrganizationsService } from "./organizations-service";
+export { createRuntimeHostPoliciesService } from "./policies-service";
+export { createRuntimeHostExecuteRuntimeRun } from "./runtime-execution-port";
 export {
   createKeychainSecretMaterialStore,
   createSqlSecretMaterialStore,
@@ -19,6 +19,6 @@ export {
   type SecretMaterialScope,
   type SecretMaterialStore,
 } from "./secret-material-store";
-export { createPmStorageService } from "./storage-service";
-export { createPmToolsService } from "./tools-service";
-export { createPmWorkspacesService } from "./workspaces-service";
+export { createRuntimeHostStorageService } from "./storage-service";
+export { createRuntimeHostToolsService } from "./tools-service";
+export { createRuntimeHostWorkspacesService } from "./workspaces-service";

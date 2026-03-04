@@ -26,13 +26,19 @@ Supported commands:
 - `executor workspace use <workspace-id>`
 - `executor run execute --code ...`
 - `executor run execute --file ...`
-- `executor run bootstrap openapi --spec-url ... --source-base-url ...`
-- `executor run bootstrap github`
+
+Control-plane management from CLI should happen through `run execute` and discovered
+source tool paths (for example, add Executor's own OpenAPI source, then call its
+tool paths to manage other sources).
 
 Run locally:
 
 - `bun run --cwd apps/cli start -- target show`
 - `bun run --cwd apps/cli start -- run execute --target local --code "return 1"`
-- `bun run --cwd apps/cli start -- run bootstrap github --target local`
 - `bun run --cwd apps/cli start -- --help`
 - `bun run --cwd apps/cli start -- server start --port 8788`
+
+Seed Executor's own OpenAPI source (example):
+
+- `bun run --cwd apps/cli start -- run execute --target local --workspace ws_local --code "const workspaceId='ws_local'; const res=await fetch('http://127.0.0.1:8788/v1/workspaces/'+workspaceId+'/sources',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:'src_executor_openapi',name:'executor:openapi',kind:'openapi',endpoint:'http://127.0.0.1:8788/v1/openapi.json',enabled:true,configJson:JSON.stringify({baseUrl:'http://127.0.0.1:8788'})})}); return await res.json();"`
+- Then use `tools.discover(...)` in `run execute` to locate and call source tool paths.

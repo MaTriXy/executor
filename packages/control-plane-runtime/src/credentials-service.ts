@@ -73,7 +73,7 @@ const uniqueHandles = (handles: ReadonlyArray<string | null | undefined>): Array
   return next;
 };
 
-export const createPmCredentialsService = (
+export const createRuntimeHostCredentialsService = (
   rows: CredentialRows,
   secretMaterialStore: SecretMaterialStore,
 ): ControlPlaneCredentialsServiceShape =>

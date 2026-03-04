@@ -104,7 +104,7 @@ Important boundary:
 
 ### Modes
 
-- local-lite: PM daemon + in-memory hot state + file durability
+- local-lite: Runtime Host daemon + in-memory hot state + file durability
 - remote: SQL-backed target (Postgres remote, SQLite local)
 
 ### Runtime targets
@@ -265,7 +265,7 @@ Secrets/credentials:
 ---
 
 ## 12) Security posture
-- PM binds to loopback by default.
+- Runtime Host binds to loopback by default.
 - Runtime callbacks require internal token validation.
 - Secrets do not pass through model args/transcripts.
 - Credential refs in state; secret values in secure stores.
@@ -279,7 +279,7 @@ Secrets/credentials:
 v2/
   apps/
     cli/
-    pm/
+    runtime-host/
     web/
   packages/
     schema/
@@ -340,7 +340,7 @@ Rules:
 
 ### Phase 1: local-lite execute vertical slice
 
-- PM execute path with persisted run lifecycle
+- Runtime Host execute path with persisted run lifecycle
 - runtime callback path wired through shared invocation service
 - openapi + in_memory providers
 
@@ -403,7 +403,7 @@ Implemented in `v2` so far:
 - local in-process JS runner with `tools.*` proxy
 - Deno subprocess runtime path with IPC tool-call proxying and tests
 - runtime adapter contract + registry scaffold
-- PM execute lifecycle scaffold via MCP execute path
+- Runtime Host execute lifecycle scaffold via MCP execute path
 
 Still missing:
 
@@ -417,7 +417,7 @@ Still missing:
 
 ## 19) Immediate next steps
 
-1. Land shared `ToolInvocationService` contract in v2 and wire PM execute callback path through it.
+1. Land shared `ToolInvocationService` contract in v2 and wire Runtime Host execute callback path through it.
 2. Add `CredentialResolver` interfaces and local/remote implementations; integrate at invocation-time only.
 3. Implement control handlers for sources (`add/list/remove`) and route both host API and `tools.executor.*` through same code path.
 4. Implement cloudflare-worker-loader runtime dispatch adapter in v2 and wire callback endpoints.

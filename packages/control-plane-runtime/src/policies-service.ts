@@ -24,7 +24,7 @@ const sortPolicies = (policies: ReadonlyArray<Policy>): Array<Policy> =>
     return leftPattern.localeCompare(rightPattern);
   });
 
-export const createPmPoliciesService = (
+export const createRuntimeHostPoliciesService = (
   rows: PolicyRows,
 ): ControlPlanePoliciesServiceShape =>
   makeControlPlanePoliciesService({
