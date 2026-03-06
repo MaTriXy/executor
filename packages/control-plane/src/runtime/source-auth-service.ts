@@ -11,7 +11,10 @@ import {
   createSdkMcpConnector,
   discoverMcpToolsFromConnector,
 } from "@executor-v3/codemode-mcp";
-import { type SqlControlPlaneRows } from "#persistence";
+import {
+  SqlControlPlaneRowsService,
+  type SqlControlPlaneRows,
+} from "#persistence";
 import {
   ExecutionIdSchema,
   SecretMaterialIdSchema,
@@ -23,11 +26,16 @@ import {
   type SecretRef,
   type WorkspaceId,
 } from "#schema";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
-import type { LiveExecutionManager } from "./live-execution";
+import {
+  LiveExecutionManagerService,
+  type LiveExecutionManager,
+} from "./live-execution";
 import {
   createSourceFromPayload,
   projectSourceFromStorage,
@@ -443,7 +451,7 @@ export type ExecutorSourceAddResult =
       authorizationUrl: string;
     };
 
-export type RuntimeSourceAuthService = {
+type RuntimeSourceAuthServiceShape = {
   getSourceById: (input: {
     workspaceId: WorkspaceId;
     sourceId: Source["id"];
@@ -497,7 +505,7 @@ export const createRuntimeSourceAuthService = (input: {
   rows: SqlControlPlaneRows;
   liveExecutionManager: LiveExecutionManager;
   getLocalServerBaseUrl?: () => string | undefined;
-}): RuntimeSourceAuthService => ({
+}) => ({
   getSourceById: ({ workspaceId, sourceId }) =>
     loadSourceById(input.rows, {
       workspaceId,
@@ -761,7 +769,32 @@ export const createRuntimeSourceAuthService = (input: {
 
       return connectedSource;
     }),
-});
+} satisfies RuntimeSourceAuthServiceShape);
+
+export type RuntimeSourceAuthService = ReturnType<
+  typeof createRuntimeSourceAuthService
+>;
+
+export class RuntimeSourceAuthServiceTag extends Context.Tag(
+  "#runtime/RuntimeSourceAuthServiceTag",
+)<RuntimeSourceAuthServiceTag, ReturnType<typeof createRuntimeSourceAuthService>>() {}
+
+export const RuntimeSourceAuthServiceLive = (input: {
+  getLocalServerBaseUrl?: () => string | undefined;
+} = {}) =>
+  Layer.effect(
+    RuntimeSourceAuthServiceTag,
+    Effect.gen(function* () {
+      const rows = yield* SqlControlPlaneRowsService;
+      const liveExecutionManager = yield* LiveExecutionManagerService;
+
+      return createRuntimeSourceAuthService({
+        rows,
+        liveExecutionManager,
+        getLocalServerBaseUrl: input.getLocalServerBaseUrl,
+      });
+    }),
+  );
 
 export const ExecutorAddSourceResultSchema = Schema.Union(
   Schema.Struct({

@@ -1,4 +1,5 @@
 import {
+  ControlPlaneService,
   type ControlPlaneServiceShape,
   ControlPlaneBadRequestError,
   ControlPlaneNotFoundError,
@@ -6,6 +7,7 @@ import {
 } from "#api";
 import {
   ControlPlanePersistenceError,
+  SqlControlPlaneRowsService,
   type SqlControlPlaneRows,
 } from "#persistence";
 import type {
@@ -25,13 +27,20 @@ import {
   WorkspaceIdSchema,
 } from "#schema";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 
 import { type ResolveExecutionEnvironment } from "./execution-state";
-import { type LiveExecutionManager } from "./live-execution";
+import {
+  LiveExecutionManagerService,
+  type LiveExecutionManager,
+} from "./live-execution";
 import { createRuntimeExecutionsService } from "./execution-service";
 import { loadLocalInstallation } from "./local-installation";
-import { type RuntimeSourceAuthService } from "./source-auth-service";
+import {
+  RuntimeSourceAuthServiceTag,
+  type RuntimeSourceAuthService,
+} from "./source-auth-service";
 import {
   createSourceFromPayload,
   projectSourceFromStorage,
@@ -40,6 +49,7 @@ import {
   updateSourceFromPayload,
 } from "./source-definitions";
 import { slugify } from "./slug";
+import { RuntimeExecutionResolverService } from "./workspace-execution-environment";
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 
@@ -1053,7 +1063,7 @@ export const createRuntimeControlPlaneService = (
     liveExecutionManager?: LiveExecutionManager;
     sourceAuthService?: RuntimeSourceAuthService;
   } = {},
-): ControlPlaneServiceShape => ({
+) => ({
   ...createLocalService(rows, options.sourceAuthService),
   ...createOrganizationsService(rows),
   ...createMembershipsService(rows),
@@ -1065,4 +1075,24 @@ export const createRuntimeControlPlaneService = (
     options.executionResolver,
     options.liveExecutionManager,
   ),
-});
+} satisfies ControlPlaneServiceShape);
+
+export type RuntimeControlPlaneService = ReturnType<
+  typeof createRuntimeControlPlaneService
+>;
+
+export const RuntimeControlPlaneServiceLive = Layer.effect(
+  ControlPlaneService,
+  Effect.gen(function* () {
+    const rows = yield* SqlControlPlaneRowsService;
+    const executionResolver = yield* RuntimeExecutionResolverService;
+    const liveExecutionManager = yield* LiveExecutionManagerService;
+    const sourceAuthService = yield* RuntimeSourceAuthServiceTag;
+
+    return createRuntimeControlPlaneService(rows, {
+      executionResolver,
+      liveExecutionManager,
+      sourceAuthService,
+    });
+  }),
+);

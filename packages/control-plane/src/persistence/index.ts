@@ -1,5 +1,7 @@
+import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 
 import { createDrizzleClient, type DrizzleClient } from "./client";
 import {
@@ -66,6 +68,14 @@ export type SqlControlPlanePersistence = {
   close: () => Promise<void>;
 };
 
+export class SqlControlPlanePersistenceService extends Context.Tag(
+  "#persistence/SqlControlPlanePersistenceService",
+)<SqlControlPlanePersistenceService, SqlControlPlanePersistence>() {}
+
+export class SqlControlPlaneRowsService extends Context.Tag(
+  "#persistence/SqlControlPlaneRowsService",
+)<SqlControlPlaneRowsService, SqlControlPlaneRows>() {}
+
 export class SqlPersistenceBootstrapError extends Data.TaggedError(
   "SqlPersistenceBootstrapError",
 )<{
@@ -126,3 +136,22 @@ export const createSqlControlPlanePersistence = (
         )),
     ));
 
+export const SqlControlPlanePersistenceLive = (
+  options: CreateSqlRuntimeOptions,
+) =>
+  Layer.scoped(
+    SqlControlPlanePersistenceService,
+    Effect.acquireRelease(
+      createSqlControlPlanePersistence(options),
+      (persistence) =>
+        Effect.tryPromise({
+          try: () => persistence.close(),
+          catch: () => undefined,
+        }).pipe(Effect.orDie),
+    ),
+  );
+
+export const SqlControlPlaneRowsLive = Layer.effect(
+  SqlControlPlaneRowsService,
+  Effect.map(SqlControlPlanePersistenceService, (persistence) => persistence.rows),
+);

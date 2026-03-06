@@ -1,5 +1,6 @@
 import * as PlatformHeaders from "@effect/platform/Headers";
 import {
+  ControlPlaneActorResolver,
   type ControlPlaneActorResolverShape,
   deriveWorkspaceMembershipsForPrincipal,
 } from "#api";
@@ -7,13 +8,17 @@ import {
   ActorUnauthenticatedError,
   createActor,
 } from "#domain";
-import { type SqlControlPlaneRows } from "#persistence";
+import {
+  SqlControlPlaneRowsService,
+  type SqlControlPlaneRows,
+} from "#persistence";
 import {
   PrincipalProviderSchema,
   PrincipalSchema,
   type Principal,
 } from "#schema";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as ParseResult from "effect/ParseResult";
 import * as Schema from "effect/Schema";
@@ -148,3 +153,13 @@ export const createHeaderActorResolver = (
       });
     }),
 });
+
+export const RuntimeActorResolverLive = (
+  actorResolver?: ControlPlaneActorResolverShape,
+) =>
+  actorResolver
+    ? Layer.succeed(ControlPlaneActorResolver, actorResolver)
+    : Layer.effect(
+        ControlPlaneActorResolver,
+        Effect.map(SqlControlPlaneRowsService, (rows) => createHeaderActorResolver(rows)),
+      );

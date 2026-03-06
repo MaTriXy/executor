@@ -1,38 +1,50 @@
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import * as Layer from "effect/Layer";
+import * as Scope from "effect/Scope";
 
 import {
+  ControlPlaneActorResolver,
   type ControlPlaneActorResolverShape,
+  ControlPlaneService,
   type ControlPlaneServiceShape,
 } from "#api";
 import {
-  createSqlControlPlanePersistence,
+  SqlControlPlanePersistenceLive,
+  SqlControlPlanePersistenceService,
+  SqlControlPlaneRowsLive,
   SqlPersistenceBootstrapError,
   type CreateSqlRuntimeOptions,
   type SqlControlPlanePersistence,
 } from "#persistence";
 
-import {
-  ControlPlaneAuthHeaders,
-  createHeaderActorResolver,
-} from "./actor-resolver";
 import type { LocalInstallation } from "#schema";
 import {
-  getOrProvisionLocalInstallation,
-} from "./local-installation";
+  ControlPlaneAuthHeaders,
+  RuntimeActorResolverLive,
+  createHeaderActorResolver,
+} from "./actor-resolver";
 import {
   type ResolveExecutionEnvironment,
 } from "./execution-state";
 import {
-  createLiveExecutionManager,
+  LiveExecutionManagerLive,
 } from "./live-execution";
 import {
-  createWorkspaceExecutionEnvironmentResolver,
-} from "./workspace-execution-environment";
+  getOrProvisionLocalInstallation,
+} from "./local-installation";
 import {
-  createRuntimeSourceAuthService,
+  RuntimeSourceAuthServiceLive,
   type ResolveSecretMaterial,
 } from "./source-auth-service";
-import { createRuntimeControlPlaneService } from "./services";
+import {
+  RuntimeControlPlaneServiceLive,
+  createRuntimeControlPlaneService,
+} from "./services";
+import {
+  RuntimeExecutionResolverLive,
+} from "./workspace-execution-environment";
 
 export {
   ControlPlaneAuthHeaders,
@@ -46,45 +58,87 @@ export * from "./local-installation";
 export * from "./source-auth-service";
 export * from "./workspace-execution-environment";
 
-export type RuntimeControlPlaneInput = {
-  persistence: SqlControlPlanePersistence;
+export type RuntimeControlPlaneOptions = {
   actorResolver?: ControlPlaneActorResolverShape;
   executionResolver?: ResolveExecutionEnvironment;
   resolveSecretMaterial?: ResolveSecretMaterial;
   getLocalServerBaseUrl?: () => string | undefined;
 };
 
+export type RuntimeControlPlaneInput = RuntimeControlPlaneOptions & {
+  persistence: SqlControlPlanePersistence;
+};
+
+const detailsFromCause = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : String(cause);
+
+const toLocalInstallationBootstrapError = (
+  cause: unknown,
+): SqlPersistenceBootstrapError => {
+  const details = detailsFromCause(cause);
+  return new SqlPersistenceBootstrapError({
+    message: `Failed provisioning local installation: ${details}`,
+    details,
+  });
+};
+
+const closeScope = (scope: Scope.CloseableScope) =>
+  Scope.close(scope, Exit.void).pipe(Effect.orDie);
+
+export const createRuntimeControlPlaneLayer = (
+  options: RuntimeControlPlaneOptions = {},
+) => {
+  const liveExecutionManagerLayer = LiveExecutionManagerLive;
+  const sourceAuthLayer = RuntimeSourceAuthServiceLive({
+    getLocalServerBaseUrl: options.getLocalServerBaseUrl,
+  }).pipe(
+    Layer.provide(liveExecutionManagerLayer),
+  );
+  const executionResolverLayer = RuntimeExecutionResolverLive({
+    executionResolver: options.executionResolver,
+    resolveSecretMaterial: options.resolveSecretMaterial,
+  }).pipe(
+    Layer.provide(sourceAuthLayer),
+  );
+  const runtimeDependenciesLayer = Layer.mergeAll(
+    liveExecutionManagerLayer,
+    sourceAuthLayer,
+    executionResolverLayer,
+  );
+
+  return Layer.mergeAll(
+    RuntimeControlPlaneServiceLive.pipe(
+      Layer.provide(runtimeDependenciesLayer),
+    ),
+    RuntimeActorResolverLive(options.actorResolver),
+    runtimeDependenciesLayer,
+  );
+};
+
 export const createRuntimeControlPlane = (
   input: RuntimeControlPlaneInput,
-): {
+): Effect.Effect<{
   service: ControlPlaneServiceShape;
   actorResolver: ControlPlaneActorResolverShape;
-} => {
-  const liveExecutionManager = createLiveExecutionManager();
-  const sourceAuthService = createRuntimeSourceAuthService({
-    rows: input.persistence.rows,
-    liveExecutionManager,
-    getLocalServerBaseUrl: input.getLocalServerBaseUrl,
-  });
-  const executionResolver =
-    input.executionResolver
-    ?? createWorkspaceExecutionEnvironmentResolver({
-      rows: input.persistence.rows,
-      resolveSecretMaterial: input.resolveSecretMaterial,
-      sourceAuthService,
-    });
-  const service = createRuntimeControlPlaneService(input.persistence.rows, {
-    executionResolver,
-    liveExecutionManager,
-    sourceAuthService,
-  });
-  const actorResolver = input.actorResolver ?? createHeaderActorResolver(input.persistence.rows);
+}> =>
+  Effect.gen(function* () {
+    const service = yield* ControlPlaneService;
+    const actorResolver = yield* ControlPlaneActorResolver;
 
-  return {
-    service,
-    actorResolver,
-  };
-};
+    return {
+      service,
+      actorResolver,
+    };
+  }).pipe(
+    Effect.provide(
+      createRuntimeControlPlaneLayer(input).pipe(
+        Layer.provide(SqlControlPlaneRowsLive),
+        Layer.provide(
+          Layer.succeed(SqlControlPlanePersistenceService, input.persistence),
+        ),
+      ),
+    ),
+  );
 
 export type SqlControlPlaneRuntime = {
   persistence: SqlControlPlanePersistence;
@@ -94,42 +148,47 @@ export type SqlControlPlaneRuntime = {
   close: () => Promise<void>;
 };
 
-export type CreateSqlControlPlaneRuntimeOptions = CreateSqlRuntimeOptions & {
-  actorResolver?: ControlPlaneActorResolverShape;
-  executionResolver?: ResolveExecutionEnvironment;
-  resolveSecretMaterial?: ResolveSecretMaterial;
-  getLocalServerBaseUrl?: () => string | undefined;
-};
+export type CreateSqlControlPlaneRuntimeOptions = CreateSqlRuntimeOptions
+  & RuntimeControlPlaneOptions;
 
 export const createSqlControlPlaneRuntime = (
   options: CreateSqlControlPlaneRuntimeOptions,
 ): Effect.Effect<SqlControlPlaneRuntime, SqlPersistenceBootstrapError> =>
-  Effect.flatMap(createSqlControlPlanePersistence(options), (persistence) =>
-    Effect.gen(function* () {
-      const runtime = createRuntimeControlPlane({
-        persistence,
-        actorResolver: options.actorResolver,
-        executionResolver: options.executionResolver,
-        resolveSecretMaterial: options.resolveSecretMaterial,
-        getLocalServerBaseUrl: options.getLocalServerBaseUrl,
-      });
-      const localInstallation = yield* getOrProvisionLocalInstallation(persistence.rows).pipe(
-        Effect.mapError((cause) =>
-          new SqlPersistenceBootstrapError({
-            message: `Failed provisioning local installation: ${
-              cause instanceof Error ? cause.message : String(cause)
-            }`,
-            details: cause instanceof Error ? cause.message : String(cause),
-          }),
-        ),
-      );
+  Effect.gen(function* () {
+    const scope = yield* Scope.make();
+    const persistenceAndRowsLayer = SqlControlPlaneRowsLive.pipe(
+      Layer.provideMerge(SqlControlPlanePersistenceLive(options)),
+    );
+    const runtimeLayer = createRuntimeControlPlaneLayer(options).pipe(
+      Layer.provideMerge(persistenceAndRowsLayer),
+    );
 
-      return {
-        persistence,
-        localInstallation,
-        service: runtime.service,
-        actorResolver: runtime.actorResolver,
-        close: () => persistence.close(),
-      };
-    })
-  );
+    const context = yield* Layer.buildWithScope(runtimeLayer, scope).pipe(
+      Effect.catchAll((error) =>
+        closeScope(scope).pipe(
+          Effect.zipRight(Effect.fail(error)),
+        )),
+    );
+
+    const persistence = Context.get(context, SqlControlPlanePersistenceService);
+    const service = Context.get(context, ControlPlaneService);
+    const actorResolver = Context.get(context, ControlPlaneActorResolver);
+
+    const localInstallation = yield* getOrProvisionLocalInstallation(
+      persistence.rows,
+    ).pipe(
+      Effect.mapError(toLocalInstallationBootstrapError),
+      Effect.catchAll((error) =>
+        closeScope(scope).pipe(
+          Effect.zipRight(Effect.fail(error)),
+        )),
+    );
+
+    return {
+      persistence,
+      localInstallation,
+      service,
+      actorResolver,
+      close: () => Effect.runPromise(Scope.close(scope, Exit.void)),
+    };
+  });

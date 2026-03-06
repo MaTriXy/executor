@@ -8,8 +8,10 @@ import {
   type Execution,
   type ExecutionInteraction,
 } from "#schema";
+import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 
 type VisibleExecutionState =
   | "waiting_for_interaction"
@@ -24,7 +26,7 @@ type LiveRunEntry = {
   } | null;
 };
 
-export type LiveExecutionManager = {
+type LiveExecutionManagerShape = {
   registerStateWaiter: (
     executionId: Execution["id"],
   ) => Effect.Effect<Deferred.Deferred<VisibleExecutionState>>;
@@ -56,7 +58,7 @@ const serializeJson = (value: unknown): string | null => {
   return JSON.stringify(value);
 };
 
-export const createLiveExecutionManager = (): LiveExecutionManager => {
+export const createLiveExecutionManager = () => {
   const runs = new Map<Execution["id"], LiveRunEntry>();
 
   const getOrCreateRun = (executionId: Execution["id"]): LiveRunEntry => {
@@ -84,7 +86,7 @@ export const createLiveExecutionManager = (): LiveExecutionManager => {
       });
     });
 
-  return {
+  const manager = {
     registerStateWaiter: (executionId) =>
       Effect.gen(function* () {
         const waiter = yield* Deferred.make<VisibleExecutionState>();
@@ -174,5 +176,18 @@ export const createLiveExecutionManager = (): LiveExecutionManager => {
       Effect.sync(() => {
         runs.delete(executionId);
       }),
-  };
+  } satisfies LiveExecutionManagerShape;
+
+  return manager;
 };
+
+export type LiveExecutionManager = ReturnType<typeof createLiveExecutionManager>;
+
+export class LiveExecutionManagerService extends Context.Tag(
+  "#runtime/LiveExecutionManagerService",
+)<LiveExecutionManagerService, ReturnType<typeof createLiveExecutionManager>>() {}
+
+export const LiveExecutionManagerLive = Layer.sync(
+  LiveExecutionManagerService,
+  createLiveExecutionManager,
+);

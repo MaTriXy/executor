@@ -14,11 +14,16 @@ import {
   fetchOpenApiDocument,
 } from "@executor-v3/codemode-openapi";
 import { makeInProcessExecutor } from "@executor-v3/runtime-local-inproc";
-import { type SqlControlPlaneRows } from "#persistence";
+import {
+  SqlControlPlaneRowsService,
+  type SqlControlPlaneRows,
+} from "#persistence";
 import type {
   Source,
 } from "#schema";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 
 import type {
   ExecutionEnvironment,
@@ -27,6 +32,7 @@ import type {
 import { createExecutorToolMap } from "./executor-tools";
 import { projectSourcesFromStorage } from "./source-definitions";
 import {
+  RuntimeSourceAuthServiceTag,
   createDbBackedSecretMaterialResolver,
   type ResolveSecretMaterial,
   type RuntimeSourceAuthService,
@@ -293,3 +299,30 @@ export const createWorkspaceExecutionEnvironmentResolver = (input: {
       } satisfies ExecutionEnvironment;
     });
 };
+
+export class RuntimeExecutionResolverService extends Context.Tag(
+  "#runtime/RuntimeExecutionResolverService",
+)<
+  RuntimeExecutionResolverService,
+  ReturnType<typeof createWorkspaceExecutionEnvironmentResolver>
+>() {}
+
+export const RuntimeExecutionResolverLive = (input: {
+  executionResolver?: ResolveExecutionEnvironment;
+  resolveSecretMaterial?: ResolveSecretMaterial;
+} = {}) =>
+  input.executionResolver
+    ? Layer.succeed(RuntimeExecutionResolverService, input.executionResolver)
+    : Layer.effect(
+        RuntimeExecutionResolverService,
+        Effect.gen(function* () {
+          const rows = yield* SqlControlPlaneRowsService;
+          const sourceAuthService = yield* RuntimeSourceAuthServiceTag;
+
+          return createWorkspaceExecutionEnvironmentResolver({
+            rows,
+            sourceAuthService,
+            resolveSecretMaterial: input.resolveSecretMaterial,
+          });
+        }),
+      );
