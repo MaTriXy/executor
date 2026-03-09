@@ -196,6 +196,8 @@ describe("control-plane-persistence-drizzle", () => {
 
       yield* persistence.rows.policies.insert({
         id: PolicyIdSchema.make("pol_1"),
+        scopeType: "workspace",
+        organizationId,
         workspaceId,
         targetAccountId: null,
         clientId: null,

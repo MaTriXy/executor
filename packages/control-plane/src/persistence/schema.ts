@@ -428,7 +428,9 @@ export const policiesTable = pgTable(
   tableNames.policies,
   {
     id: text("id").notNull().primaryKey(),
-    workspaceId: text("workspace_id").notNull(),
+    scopeType: text("scope_type").notNull(),
+    organizationId: text("organization_id").notNull(),
+    workspaceId: text("workspace_id"),
     targetAccountId: text("target_account_id"),
     clientId: text("client_id"),
     resourceType: text("resource_type").notNull(),
@@ -443,11 +445,29 @@ export const policiesTable = pgTable(
     updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
   },
   (table) => [
+    index("policies_organization_priority_idx").on(
+      table.organizationId,
+      table.priority.desc(),
+      table.updatedAt,
+      table.id,
+    ),
     index("policies_workspace_priority_idx").on(
       table.workspaceId,
       table.priority.desc(),
       table.updatedAt,
       table.id,
+    ),
+    check(
+      "policies_scope_type_check",
+      sql`${table.scopeType} in ('organization', 'workspace')`,
+    ),
+    check(
+      "policies_scope_consistency_check",
+      sql`(
+        ${table.scopeType} = 'organization' and ${table.workspaceId} is null
+      ) or (
+        ${table.scopeType} = 'workspace' and ${table.workspaceId} is not null
+      )`,
     ),
     check(
       "policies_resource_type_check",
@@ -516,6 +536,7 @@ export const executionInteractionsTable = pgTable(
     executionId: text("execution_id").notNull(),
     status: text("status").notNull(),
     kind: text("kind").notNull(),
+    purpose: text("purpose").notNull(),
     payloadJson: text("payload_json").notNull(),
     responseJson: text("response_json"),
     createdAt: bigint("created_at", { mode: "number" }).notNull(),

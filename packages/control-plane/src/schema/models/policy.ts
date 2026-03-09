@@ -7,7 +7,14 @@ import { Schema } from "effect";
 
 import { policiesTable } from "../../persistence/schema";
 import { TimestampMsSchema } from "../common";
-import { AccountIdSchema, PolicyIdSchema, WorkspaceIdSchema } from "../ids";
+import {
+  AccountIdSchema,
+  OrganizationIdSchema,
+  PolicyIdSchema,
+  WorkspaceIdSchema,
+} from "../ids";
+
+export const PolicyScopeTypeSchema = Schema.Literal("organization", "workspace");
 
 export const PolicyResourceTypeSchema = Schema.Literal(
   "all_tools",
@@ -35,7 +42,9 @@ export const PolicyArgumentConditionSchema = Schema.Struct({
 
 const policySchemaOverrides = {
   id: PolicyIdSchema,
-  workspaceId: WorkspaceIdSchema,
+  scopeType: PolicyScopeTypeSchema,
+  organizationId: OrganizationIdSchema,
+  workspaceId: Schema.NullOr(WorkspaceIdSchema),
   targetAccountId: Schema.NullOr(AccountIdSchema),
   clientId: Schema.NullOr(Schema.String),
   resourceType: PolicyResourceTypeSchema,
@@ -63,6 +72,7 @@ export type PolicyResourceType = typeof PolicyResourceTypeSchema.Type;
 export type PolicyMatchType = typeof PolicyMatchTypeSchema.Type;
 export type PolicyEffect = typeof PolicyEffectSchema.Type;
 export type PolicyApprovalMode = typeof PolicyApprovalModeSchema.Type;
+export type PolicyScopeType = typeof PolicyScopeTypeSchema.Type;
 export type ArgumentConditionOperator =
   typeof ArgumentConditionOperatorSchema.Type;
 export type PolicyArgumentCondition = typeof PolicyArgumentConditionSchema.Type;

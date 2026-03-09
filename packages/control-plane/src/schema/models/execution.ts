@@ -65,6 +65,7 @@ const executionInteractionSchemaOverrides = {
   id: ExecutionInteractionIdSchema,
   executionId: ExecutionIdSchema,
   status: ExecutionInteractionStatusSchema,
+  purpose: Schema.String,
   responseJson: Schema.NullOr(Schema.String),
   createdAt: TimestampMsSchema,
   updatedAt: TimestampMsSchema,
