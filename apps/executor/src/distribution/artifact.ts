@@ -120,7 +120,7 @@ const createPackageJson = (input: {
     type: "module",
     private: false,
     bin: {
-      executor: "./bin/executor.js",
+      executor: "bin/executor.js",
     },
     files: [
       "bin",
@@ -195,6 +195,11 @@ export const buildDistributionPackage = async (
   });
   await cp(pgliteDataPath, join(binDir, "pglite.data"));
   await cp(pgliteWasmPath, join(binDir, "pglite.wasm"));
+  await mkdir(join(binDir, "openapi-extractor-wasm"), { recursive: true });
+  await cp(
+    join(repoRoot, "packages/codemode-openapi/src/openapi-extractor-wasm/openapi_extractor_bg.wasm"),
+    join(binDir, "openapi-extractor-wasm/openapi_extractor_bg.wasm"),
+  );
   await cp(
     join(repoRoot, "packages/runtime-deno-subprocess/src/deno-subprocess-worker.mjs"),
     join(binDir, "deno-subprocess-worker.mjs"),

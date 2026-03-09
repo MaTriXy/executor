@@ -15,8 +15,16 @@ const statusColor: Record<string, string> = {
   error: "bg-destructive",
 };
 
-// ── AppShell ─────────────────────────────────────────────────────────────
+type AppMetaEnv = {
+  readonly VITE_APP_VERSION: string;
+  readonly VITE_GITHUB_URL: string;
+};
 
+const { VITE_APP_VERSION, VITE_GITHUB_URL } = (import.meta as ImportMeta & {
+  readonly env: AppMetaEnv;
+}).env;
+
+// ── AppShell ─────────────────────────────────────────────────────────────
 export function AppShell() {
   const sources = useSources();
   const matchRoute = useMatchRoute();
@@ -75,8 +83,16 @@ export function AppShell() {
 
         {/* Footer */}
         <div className="shrink-0 border-t border-sidebar-border px-4 py-2.5">
-          <div className="text-[10px] text-muted-foreground/30">
-            executor v3
+          <div className="flex flex-col items-start gap-1 text-[10px] leading-none">
+            <span className="text-muted-foreground/35">v{VITE_APP_VERSION}</span>
+            <a
+              href={VITE_GITHUB_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="text-muted-foreground/50 transition-colors hover:text-foreground"
+            >
+              Star on GitHub
+            </a>
           </div>
         </div>
       </aside>

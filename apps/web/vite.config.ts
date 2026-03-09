@@ -1,7 +1,27 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import devServer from "@hono/vite-dev-server";
+
+type ExecutorPackageMetadata = {
+  version: string;
+  homepage?: string;
+  repository?: string | { url?: string };
+};
+
+const executorPackage = JSON.parse(
+  readFileSync(new URL("../executor/package.json", import.meta.url), "utf8"),
+) as ExecutorPackageMetadata;
+
+const repositoryUrl =
+  typeof executorPackage.repository === "string"
+    ? executorPackage.repository
+    : executorPackage.repository?.url;
+
+const githubUrl = (executorPackage.homepage ?? repositoryUrl ?? "https://github.com/RhysSullivan/executor")
+  .replace(/^git\+/, "")
+  .replace(/\.git$/, "");
 
 export default defineConfig({
   root: "src",
@@ -19,6 +39,10 @@ export default defineConfig({
       injectClientScript: false,
     }),
   ],
+  define: {
+    "import.meta.env.VITE_APP_VERSION": JSON.stringify(executorPackage.version),
+    "import.meta.env.VITE_GITHUB_URL": JSON.stringify(githubUrl),
+  },
   build: {
     outDir: "../dist",
     emptyOutDir: true,
