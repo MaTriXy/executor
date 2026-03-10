@@ -241,13 +241,14 @@ export const ControlPlaneOAuthLive = HttpApiBuilder.group(
   (handlers) =>
     handlers
       .handle("startSourceAuth", ({ path, payload }) =>
-        withWorkspaceRequestActor("oauth.start_source_auth", path.workspaceId, () =>
+        withWorkspaceRequestActor("oauth.start_source_auth", path.workspaceId, (actor) =>
           withPolicy(requireWriteSources(path.workspaceId))(
             Effect.gen(function* () {
               const request = yield* HttpServerRequest.HttpServerRequest;
               const sourceAuthService = yield* RuntimeSourceAuthServiceTag;
               return yield* sourceAuthService.startSourceOAuthSession({
                 workspaceId: path.workspaceId,
+                actorAccountId: actor.principal.accountId,
                 baseUrl: resolveRequestOrigin(request),
                 displayName: payload.name,
                 provider: {

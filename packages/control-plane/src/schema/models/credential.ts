@@ -1,12 +1,10 @@
 import { createSelectSchema } from "drizzle-orm/effect-schema";
 import { Schema } from "effect";
 
-import {
-  credentialsTable,
-  sourceCredentialBindingsTable,
-} from "../../persistence/schema";
+import { credentialsTable } from "../../persistence/schema";
 import { TimestampMsSchema } from "../common";
 import {
+  AccountIdSchema,
   CredentialIdSchema,
   SourceIdSchema,
   WorkspaceIdSchema,
@@ -17,6 +15,8 @@ export const CredentialAuthKindSchema = Schema.Literal("bearer", "oauth2");
 const credentialSchemaOverrides = {
   id: CredentialIdSchema,
   workspaceId: WorkspaceIdSchema,
+  sourceId: SourceIdSchema,
+  actorAccountId: Schema.NullOr(AccountIdSchema),
   authKind: CredentialAuthKindSchema,
   authHeaderName: Schema.String,
   authPrefix: Schema.String,
@@ -28,25 +28,10 @@ const credentialSchemaOverrides = {
   updatedAt: TimestampMsSchema,
 } as const;
 
-const sourceCredentialBindingSchemaOverrides = {
-  id: Schema.String,
-  workspaceId: WorkspaceIdSchema,
-  sourceId: SourceIdSchema,
-  credentialId: CredentialIdSchema,
-  createdAt: TimestampMsSchema,
-  updatedAt: TimestampMsSchema,
-} as const;
-
 export const CredentialSchema = createSelectSchema(
   credentialsTable,
   credentialSchemaOverrides,
 );
 
-export const SourceCredentialBindingSchema = createSelectSchema(
-  sourceCredentialBindingsTable,
-  sourceCredentialBindingSchemaOverrides,
-);
-
 export type CredentialAuthKind = typeof CredentialAuthKindSchema.Type;
 export type Credential = typeof CredentialSchema.Type;
-export type SourceCredentialBinding = typeof SourceCredentialBindingSchema.Type;

@@ -4,6 +4,7 @@ import { Schema } from "effect";
 import { sourceAuthSessionsTable } from "../../persistence/schema";
 import { TimestampMsSchema } from "../common";
 import {
+  AccountIdSchema,
   ExecutionIdSchema,
   ExecutionInteractionIdSchema,
   SourceAuthSessionIdSchema,
@@ -11,8 +12,9 @@ import {
   WorkspaceIdSchema,
 } from "../ids";
 
-export const SourceAuthSessionStrategySchema = Schema.Literal(
-  "oauth2_authorization_code",
+export const SourceAuthSessionProviderKindSchema = Schema.Literal(
+  "mcp_oauth",
+  "oauth2_pkce",
 );
 
 export const SourceAuthSessionStatusSchema = Schema.Literal(
@@ -26,9 +28,10 @@ const sourceAuthSessionSchemaOverrides = {
   id: SourceAuthSessionIdSchema,
   workspaceId: WorkspaceIdSchema,
   sourceId: SourceIdSchema,
+  actorAccountId: Schema.NullOr(AccountIdSchema),
   executionId: Schema.NullOr(ExecutionIdSchema),
   interactionId: Schema.NullOr(ExecutionInteractionIdSchema),
-  strategy: SourceAuthSessionStrategySchema,
+  providerKind: SourceAuthSessionProviderKindSchema,
   status: SourceAuthSessionStatusSchema,
   completedAt: Schema.NullOr(TimestampMsSchema),
   createdAt: TimestampMsSchema,
@@ -40,6 +43,6 @@ export const SourceAuthSessionSchema = createSelectSchema(
   sourceAuthSessionSchemaOverrides,
 );
 
-export type SourceAuthSessionStrategy = typeof SourceAuthSessionStrategySchema.Type;
+export type SourceAuthSessionProviderKind = typeof SourceAuthSessionProviderKindSchema.Type;
 export type SourceAuthSessionStatus = typeof SourceAuthSessionStatusSchema.Type;
 export type SourceAuthSession = typeof SourceAuthSessionSchema.Type;

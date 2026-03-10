@@ -9,17 +9,22 @@ import {
   SecretMaterialIdSchema,
   SourceAuthSessionIdSchema,
   SourceIdSchema,
+  SourceRecipeIdSchema,
+  SourceRecipeRevisionIdSchema,
   WorkspaceIdSchema,
 } from "#schema";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import * as Scope from "effect/Scope";
 
 import {
   createSqlControlPlanePersistence,
   type SqlControlPlanePersistence,
 } from "./index";
+import { drizzleSchema } from "./schema";
 
-const makePersistence = Effect.acquireRelease(
+const makePersistence: Effect.Effect<SqlControlPlanePersistence, unknown, Scope.Scope> =
+  Effect.acquireRelease(
   createSqlControlPlanePersistence({
     localDataDir: ":memory:",
   }),
@@ -28,20 +33,19 @@ const makePersistence = Effect.acquireRelease(
       try: () => persistence.close(),
       catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
     }).pipe(Effect.orDie),
-);
+  );
 
-const seedWorkspaceCredentialState = (input: {
+const seedWorkspaceSourceState = (input: {
   persistence: SqlControlPlanePersistence;
   accountId: ReturnType<typeof AccountIdSchema.make>;
   organizationId: ReturnType<typeof OrganizationIdSchema.make>;
   workspaceId: ReturnType<typeof WorkspaceIdSchema.make>;
   sourceId: ReturnType<typeof SourceIdSchema.make>;
-}) =>
+}): Effect.Effect<void, unknown, never> =>
   Effect.gen(function* () {
     const now = Date.now();
-    const credentialId = CredentialIdSchema.make(`cred_${input.workspaceId}`);
-    const tokenId = SecretMaterialIdSchema.make(`sec_${input.workspaceId}_token`);
-    const refreshId = SecretMaterialIdSchema.make(`sec_${input.workspaceId}_refresh`);
+    const recipeId = SourceRecipeIdSchema.make(`src_recipe_${input.sourceId}`);
+    const recipeRevisionId = SourceRecipeRevisionIdSchema.make(`src_recipe_rev_${input.sourceId}`);
 
     yield* input.persistence.rows.organizations.insert({
       id: input.organizationId,
@@ -63,6 +67,8 @@ const seedWorkspaceCredentialState = (input: {
     yield* input.persistence.rows.sources.insert({
       id: input.sourceId,
       workspaceId: input.workspaceId,
+      recipeId,
+      recipeRevisionId,
       name: "Github",
       kind: "openapi",
       endpoint: "https://api.github.com",
@@ -70,6 +76,7 @@ const seedWorkspaceCredentialState = (input: {
       enabled: true,
       namespace: "github",
       transport: null,
+      bindingConfigJson: null,
       queryParamsJson: null,
       headersJson: null,
       specUrl: "https://api.github.com/openapi.json",
@@ -80,6 +87,25 @@ const seedWorkspaceCredentialState = (input: {
       createdAt: now,
       updatedAt: now,
     });
+  });
+
+const seedWorkspaceCredentialState = (input: {
+  persistence: SqlControlPlanePersistence;
+  accountId: ReturnType<typeof AccountIdSchema.make>;
+  organizationId: ReturnType<typeof OrganizationIdSchema.make>;
+  workspaceId: ReturnType<typeof WorkspaceIdSchema.make>;
+  sourceId: ReturnType<typeof SourceIdSchema.make>;
+}): Effect.Effect<{
+  tokenId: ReturnType<typeof SecretMaterialIdSchema.make>;
+  refreshId: ReturnType<typeof SecretMaterialIdSchema.make>;
+}, unknown, never> =>
+  Effect.gen(function* () {
+    const now = Date.now();
+    const credentialId = CredentialIdSchema.make(`cred_${input.workspaceId}`);
+    const tokenId = SecretMaterialIdSchema.make(`sec_${input.workspaceId}_token`);
+    const refreshId = SecretMaterialIdSchema.make(`sec_${input.workspaceId}_refresh`);
+
+    yield* seedWorkspaceSourceState(input);
     yield* input.persistence.rows.secretMaterials.upsert({
       id: tokenId,
       name: null,
@@ -99,6 +125,8 @@ const seedWorkspaceCredentialState = (input: {
     yield* input.persistence.rows.credentials.upsert({
       id: credentialId,
       workspaceId: input.workspaceId,
+      sourceId: input.sourceId,
+      actorAccountId: input.accountId,
       authKind: "oauth2",
       authHeaderName: "Authorization",
       authPrefix: "Bearer ",
@@ -109,33 +137,29 @@ const seedWorkspaceCredentialState = (input: {
       createdAt: now,
       updatedAt: now,
     });
-    yield* input.persistence.rows.sourceCredentialBindings.upsert({
-      id: `src_cred_bind_${input.workspaceId}`,
-      workspaceId: input.workspaceId,
-      sourceId: input.sourceId,
-      credentialId,
-      createdAt: now,
-      updatedAt: now,
-    });
     yield* input.persistence.rows.sourceAuthSessions.upsert({
       id: SourceAuthSessionIdSchema.make(`src_auth_${input.workspaceId}`),
       workspaceId: input.workspaceId,
       sourceId: input.sourceId,
+      actorAccountId: input.accountId,
       executionId: null,
       interactionId: null,
-      strategy: "oauth2_authorization_code",
+      providerKind: "mcp_oauth",
       status: "pending",
-      endpoint: "https://api.github.com",
       state: `state_${input.workspaceId}`,
-      redirectUri: "http://127.0.0.1/callback",
-      scope: null,
-      resourceMetadataUrl: null,
-      authorizationServerUrl: null,
-      resourceMetadataJson: null,
-      authorizationServerMetadataJson: null,
-      clientInformationJson: null,
-      codeVerifier: "verifier",
-      authorizationUrl: "https://example.com/auth",
+      sessionDataJson: JSON.stringify({
+        kind: "mcp_oauth",
+        endpoint: "https://api.github.com",
+        redirectUri: "http://127.0.0.1/callback",
+        scope: null,
+        resourceMetadataUrl: null,
+        authorizationServerUrl: null,
+        resourceMetadataJson: null,
+        authorizationServerMetadataJson: null,
+        clientInformationJson: null,
+        codeVerifier: "verifier",
+        authorizationUrl: "https://example.com/auth",
+      }),
       errorText: null,
       completedAt: null,
       createdAt: now,
@@ -176,6 +200,8 @@ describe("control-plane-persistence-drizzle", () => {
       yield* persistence.rows.sources.insert({
         id: SourceIdSchema.make("src_1"),
         workspaceId,
+        recipeId: SourceRecipeIdSchema.make("src_recipe_1"),
+        recipeRevisionId: SourceRecipeRevisionIdSchema.make("src_recipe_rev_1"),
         name: "Github",
         kind: "openapi",
         endpoint: "https://api.github.com",
@@ -183,6 +209,7 @@ describe("control-plane-persistence-drizzle", () => {
         enabled: true,
         namespace: "github",
         transport: null,
+        bindingConfigJson: null,
         queryParamsJson: null,
         headersJson: null,
         specUrl: "https://api.github.com/openapi.json",
@@ -271,6 +298,137 @@ describe("control-plane-persistence-drizzle", () => {
     }),
   );
 
+  it.scoped("deduplicates null-actor credentials and returns actor/shared matches", () =>
+    Effect.gen(function* () {
+      const persistence = yield* makePersistence;
+      const accountId = AccountIdSchema.make("acc_credentials");
+      const organizationId = OrganizationIdSchema.make("org_credentials");
+      const workspaceId = WorkspaceIdSchema.make("ws_credentials");
+      const sourceId = SourceIdSchema.make("src_credentials");
+      const actorCredentialId = CredentialIdSchema.make("cred_actor_credentials");
+      const nullCredentialA = CredentialIdSchema.make("cred_null_credentials_a");
+      const nullCredentialB = CredentialIdSchema.make("cred_null_credentials_b");
+      const now = Date.now();
+
+      yield* seedWorkspaceSourceState({
+        persistence,
+        accountId,
+        organizationId,
+        workspaceId,
+        sourceId,
+      });
+
+      yield* Effect.tryPromise(async () => {
+        await persistence.db.insert(drizzleSchema.credentialsTable).values([
+          {
+            id: nullCredentialA,
+            workspaceId,
+            sourceId,
+            actorAccountId: null,
+            authKind: "bearer",
+            authHeaderName: "Authorization",
+            authPrefix: "Bearer ",
+            tokenProviderId: "postgres",
+            tokenHandle: "sec_null_a",
+            refreshTokenProviderId: null,
+            refreshTokenHandle: null,
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: nullCredentialB,
+            workspaceId,
+            sourceId,
+            actorAccountId: null,
+            authKind: "bearer",
+            authHeaderName: "Authorization",
+            authPrefix: "Bearer ",
+            tokenProviderId: "postgres",
+            tokenHandle: "sec_null_b",
+            refreshTokenProviderId: null,
+            refreshTokenHandle: null,
+            createdAt: now + 1,
+            updatedAt: now + 1,
+          },
+        ]);
+      }).pipe(Effect.orDie);
+
+      yield* persistence.rows.credentials.upsert({
+        id: CredentialIdSchema.make("cred_null_credentials_replacement"),
+        workspaceId,
+        sourceId,
+        actorAccountId: null,
+        authKind: "oauth2",
+        authHeaderName: "X-Auth",
+        authPrefix: "Token ",
+        tokenProviderId: "postgres",
+        tokenHandle: "sec_null_replacement",
+        refreshTokenProviderId: "postgres",
+        refreshTokenHandle: "sec_null_refresh",
+        createdAt: now + 2,
+        updatedAt: now + 2,
+      });
+
+      yield* persistence.rows.credentials.upsert({
+        id: actorCredentialId,
+        workspaceId,
+        sourceId,
+        actorAccountId: accountId,
+        authKind: "bearer",
+        authHeaderName: "Authorization",
+        authPrefix: "Bearer ",
+        tokenProviderId: "postgres",
+        tokenHandle: "sec_actor",
+        refreshTokenProviderId: null,
+        refreshTokenHandle: null,
+        createdAt: now + 3,
+        updatedAt: now + 3,
+      });
+
+      const allCredentials = yield* persistence.rows.credentials.listByWorkspaceAndSourceId({
+        workspaceId,
+        sourceId,
+      });
+      expect(allCredentials).toHaveLength(2);
+      const nullActorCredentials = allCredentials.filter((credential) => credential.actorAccountId === null);
+      expect(nullActorCredentials).toHaveLength(1);
+      expect(nullActorCredentials[0]?.id).toBe(nullCredentialA);
+      expect(nullActorCredentials[0]?.authKind).toBe("oauth2");
+      expect(nullActorCredentials[0]?.authHeaderName).toBe("X-Auth");
+      expect(nullActorCredentials[0]?.tokenHandle).toBe("sec_null_replacement");
+      expect(allCredentials.map((credential) => credential.id).sort()).toEqual(
+        [actorCredentialId, nullCredentialA].sort(),
+      );
+
+      const forActor = yield* persistence.rows.credentials.listByWorkspaceSourceAndActor({
+        workspaceId,
+        sourceId,
+        actorAccountId: accountId,
+      });
+      expect(forActor).toHaveLength(2);
+      expect(new Set(forActor.map((credential) => credential.id))).toEqual(
+        new Set([actorCredentialId, nullCredentialA]),
+      );
+
+      const nullActorOnly = yield* persistence.rows.credentials.getByWorkspaceSourceAndActor({
+        workspaceId,
+        sourceId,
+        actorAccountId: null,
+      });
+      assertTrue(Option.isSome(nullActorOnly));
+      if (Option.isSome(nullActorOnly)) {
+        expect(nullActorOnly.value.id).toBe(nullCredentialA);
+      }
+
+      const missingActor = yield* persistence.rows.credentials.getByWorkspaceSourceAndActor({
+        workspaceId,
+        sourceId,
+        actorAccountId: AccountIdSchema.make("acc_missing_credentials"),
+      });
+      expect(Option.isNone(missingActor)).toBe(true);
+    }),
+  );
+
   it.scoped("deleting a workspace removes source credentials, sessions, and postgres secrets", () =>
     Effect.gen(function* () {
       const persistence = yield* makePersistence;
@@ -291,7 +449,6 @@ describe("control-plane-persistence-drizzle", () => {
       expect(removed).toBe(true);
       expect(Option.isNone(yield* persistence.rows.workspaces.getById(workspaceId))).toBe(true);
       expect(yield* persistence.rows.credentials.listByWorkspaceId(workspaceId)).toHaveLength(0);
-      expect(yield* persistence.rows.sourceCredentialBindings.listByWorkspaceId(workspaceId)).toHaveLength(0);
       expect(yield* persistence.rows.sourceAuthSessions.listByWorkspaceId(workspaceId)).toHaveLength(0);
       expect(Option.isNone(yield* persistence.rows.secretMaterials.getById(tokenId))).toBe(true);
       expect(Option.isNone(yield* persistence.rows.secretMaterials.getById(refreshId))).toBe(true);
@@ -318,7 +475,6 @@ describe("control-plane-persistence-drizzle", () => {
       expect(removed).toBe(true);
       expect(Option.isNone(yield* persistence.rows.workspaces.getById(workspaceId))).toBe(true);
       expect(yield* persistence.rows.credentials.listByWorkspaceId(workspaceId)).toHaveLength(0);
-      expect(yield* persistence.rows.sourceCredentialBindings.listByWorkspaceId(workspaceId)).toHaveLength(0);
       expect(yield* persistence.rows.sourceAuthSessions.listByWorkspaceId(workspaceId)).toHaveLength(0);
       expect(Option.isNone(yield* persistence.rows.secretMaterials.getById(tokenId))).toBe(true);
       expect(Option.isNone(yield* persistence.rows.secretMaterials.getById(refreshId))).toBe(true);

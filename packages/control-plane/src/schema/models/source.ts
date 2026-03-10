@@ -5,7 +5,12 @@ import { Schema } from "effect";
 
 import { sourcesTable } from "../../persistence/schema";
 import { TimestampMsSchema } from "../common";
-import { SourceIdSchema, WorkspaceIdSchema } from "../ids";
+import {
+  SourceIdSchema,
+  SourceRecipeIdSchema,
+  SourceRecipeRevisionIdSchema,
+  WorkspaceIdSchema,
+} from "../ids";
 
 export const SourceKindSchema = Schema.Literal(
   "mcp",
@@ -60,6 +65,8 @@ export const StringMapSchema = Schema.Record({
 const sourceRowSchemaOverrides = {
   workspaceId: WorkspaceIdSchema,
   sourceId: SourceIdSchema,
+  recipeId: SourceRecipeIdSchema,
+  recipeRevisionId: SourceRecipeRevisionIdSchema,
   kind: SourceKindSchema,
   status: SourceStatusSchema,
   transport: Schema.NullOr(SourceTransportSchema),
@@ -74,12 +81,15 @@ export const StoredSourceRecordSchema = Schema.transform(
   Schema.Struct({
     id: SourceIdSchema,
     workspaceId: WorkspaceIdSchema,
+    recipeId: SourceRecipeIdSchema,
+    recipeRevisionId: SourceRecipeRevisionIdSchema,
     name: Schema.String,
     kind: SourceKindSchema,
     endpoint: Schema.String,
     status: SourceStatusSchema,
     enabled: Schema.Boolean,
     namespace: Schema.NullOr(Schema.String),
+    bindingConfigJson: Schema.NullOr(Schema.String),
     transport: Schema.NullOr(SourceTransportSchema),
     queryParamsJson: Schema.NullOr(Schema.String),
     headersJson: Schema.NullOr(Schema.String),
@@ -96,12 +106,15 @@ export const StoredSourceRecordSchema = Schema.transform(
     decode: (row, _input) => ({
       id: row.sourceId,
       workspaceId: row.workspaceId,
+      recipeId: row.recipeId,
+      recipeRevisionId: row.recipeRevisionId,
       name: row.name,
       kind: row.kind,
       endpoint: row.endpoint,
       status: row.status,
       enabled: row.enabled,
       namespace: row.namespace,
+      bindingConfigJson: row.bindingConfigJson,
       transport: row.transport,
       queryParamsJson: row.queryParamsJson,
       headersJson: row.headersJson,
@@ -116,12 +129,15 @@ export const StoredSourceRecordSchema = Schema.transform(
     encode: (source, _output) => ({
       workspaceId: source.workspaceId,
       sourceId: source.id,
+      recipeId: source.recipeId,
+      recipeRevisionId: source.recipeRevisionId,
       name: source.name,
       kind: source.kind,
       endpoint: source.endpoint,
       status: source.status,
       enabled: source.enabled,
       namespace: source.namespace,
+      bindingConfigJson: source.bindingConfigJson,
       transport: source.transport,
       queryParamsJson: source.queryParamsJson,
       headersJson: source.headersJson,

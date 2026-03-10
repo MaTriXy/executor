@@ -16,12 +16,16 @@ export const tableNames = {
   organizationMemberships: "organization_memberships",
   workspaces: "workspaces",
   sources: "sources",
+  sourceRecipes: "source_recipes",
+  sourceRecipeRevisions: "source_recipe_revisions",
+  sourceRecipeDocuments: "source_recipe_documents",
+  sourceRecipeOperations: "source_recipe_operations",
   toolArtifacts: "tool_artifacts",
   toolArtifactParameters: "tool_artifact_parameters",
   toolArtifactRequestBodyContentTypes: "tool_artifact_request_body_content_types",
   toolArtifactRefHintKeys: "tool_artifact_ref_hint_keys",
-  credentials: "credentials",
-  sourceCredentialBindings: "source_credential_bindings",
+  credentials: "workspace_source_credentials",
+  workspaceSourceOauthClients: "workspace_source_oauth_clients",
   secretMaterials: "secret_materials",
   sourceAuthSessions: "source_auth_sessions",
   policies: "policies",
@@ -133,12 +137,15 @@ export const sourcesTable = pgTable(
   {
     workspaceId: text("workspace_id").notNull(),
     sourceId: text("source_id").notNull(),
+    recipeId: text("recipe_id").notNull(),
+    recipeRevisionId: text("recipe_revision_id").notNull(),
     name: text("name").notNull(),
     kind: text("kind").notNull(),
     endpoint: text("endpoint").notNull(),
     status: text("status").notNull(),
     enabled: boolean("enabled").notNull(),
     namespace: text("namespace"),
+    bindingConfigJson: text("binding_config_json"),
     transport: text("transport"),
     queryParamsJson: text("query_params_json"),
     headersJson: text("headers_json"),
@@ -159,6 +166,12 @@ export const sourcesTable = pgTable(
       table.updatedAt,
       table.sourceId,
     ),
+    index("sources_workspace_recipe_idx").on(
+      table.workspaceId,
+      table.recipeId,
+      table.updatedAt,
+      table.sourceId,
+    ),
     uniqueIndex("sources_workspace_name_idx").on(table.workspaceId, table.name),
     check(
       "sources_kind_check",
@@ -175,11 +188,187 @@ export const sourcesTable = pgTable(
   ],
 );
 
+export const sourceRecipesTable = pgTable(
+  tableNames.sourceRecipes,
+  {
+    id: text("id").notNull().primaryKey(),
+    kind: text("kind").notNull(),
+    importerKind: text("importer_kind").notNull(),
+    providerKey: text("provider_key").notNull(),
+    name: text("name").notNull(),
+    summary: text("summary"),
+    visibility: text("visibility").notNull(),
+    latestRevisionId: text("latest_revision_id").notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    index("source_recipes_provider_updated_idx").on(
+      table.providerKey,
+      table.updatedAt,
+      table.id,
+    ),
+    index("source_recipes_visibility_updated_idx").on(
+      table.visibility,
+      table.updatedAt,
+      table.id,
+    ),
+    check(
+      "source_recipes_kind_check",
+      sql`${table.kind} in ('http_recipe', 'graphql_recipe', 'mcp_recipe', 'internal_recipe')`,
+    ),
+    check(
+      "source_recipes_importer_kind_check",
+      sql`${table.importerKind} in (
+        'openapi',
+        'google_discovery',
+        'postman_collection',
+        'snippet_bundle',
+        'graphql_introspection',
+        'mcp_manifest',
+        'internal_manifest'
+      )`,
+    ),
+    check(
+      "source_recipes_visibility_check",
+      sql`${table.visibility} in ('private', 'workspace', 'organization', 'public')`,
+    ),
+  ],
+);
+
+export const sourceRecipeRevisionsTable = pgTable(
+  tableNames.sourceRecipeRevisions,
+  {
+    id: text("id").notNull().primaryKey(),
+    recipeId: text("recipe_id").notNull(),
+    revisionNumber: bigint("revision_number", { mode: "number" }).notNull(),
+    sourceConfigJson: text("source_config_json").notNull(),
+    manifestJson: text("manifest_json"),
+    manifestHash: text("manifest_hash"),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("source_recipe_revisions_recipe_revision_idx").on(
+      table.recipeId,
+      table.revisionNumber,
+    ),
+    uniqueIndex("source_recipe_revisions_recipe_manifest_idx").on(
+      table.recipeId,
+      table.manifestHash,
+    ),
+    index("source_recipe_revisions_recipe_created_idx").on(
+      table.recipeId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export const sourceRecipeDocumentsTable = pgTable(
+  tableNames.sourceRecipeDocuments,
+  {
+    id: text("id").notNull().primaryKey(),
+    recipeRevisionId: text("recipe_revision_id").notNull(),
+    documentKind: text("document_kind").notNull(),
+    documentKey: text("document_key").notNull(),
+    contentText: text("content_text").notNull(),
+    contentHash: text("content_hash").notNull(),
+    fetchedAt: bigint("fetched_at", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("source_recipe_documents_revision_kind_key_idx").on(
+      table.recipeRevisionId,
+      table.documentKind,
+      table.documentKey,
+    ),
+    index("source_recipe_documents_revision_created_idx").on(
+      table.recipeRevisionId,
+      table.createdAt,
+      table.id,
+    ),
+    check(
+      "source_recipe_documents_kind_check",
+      sql`${table.documentKind} in (
+        'google_discovery',
+        'openapi',
+        'postman_collection',
+        'postman_environment',
+        'graphql_introspection',
+        'mcp_manifest'
+      )`,
+    ),
+  ],
+);
+
+export const sourceRecipeOperationsTable = pgTable(
+  tableNames.sourceRecipeOperations,
+  {
+    id: text("id").notNull().primaryKey(),
+    recipeRevisionId: text("recipe_revision_id").notNull(),
+    operationKey: text("operation_key").notNull(),
+    transportKind: text("transport_kind").notNull(),
+    toolId: text("tool_id").notNull(),
+    title: text("title"),
+    description: text("description"),
+    operationKind: text("operation_kind").notNull(),
+    searchText: text("search_text").notNull(),
+    inputSchemaJson: text("input_schema_json"),
+    outputSchemaJson: text("output_schema_json"),
+    providerKind: text("provider_kind").notNull(),
+    providerDataJson: text("provider_data_json"),
+    mcpToolName: text("mcp_tool_name"),
+    openApiMethod: text("openapi_method"),
+    openApiPathTemplate: text("openapi_path_template"),
+    openApiOperationHash: text("openapi_operation_hash"),
+    openApiRawToolId: text("openapi_raw_tool_id"),
+    openApiOperationId: text("openapi_operation_id"),
+    openApiTagsJson: text("openapi_tags_json"),
+    openApiRequestBodyRequired: boolean("openapi_request_body_required"),
+    graphqlOperationType: text("graphql_operation_type"),
+    graphqlOperationName: text("graphql_operation_name"),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("source_recipe_operations_revision_operation_key_idx").on(
+      table.recipeRevisionId,
+      table.operationKey,
+    ),
+    index("source_recipe_operations_revision_tool_idx").on(
+      table.recipeRevisionId,
+      table.toolId,
+      table.updatedAt,
+      table.id,
+    ),
+    index("source_recipe_operations_search_text_idx").using(
+      "gin",
+      sql`to_tsvector('simple', ${table.searchText})`,
+    ),
+    check(
+      "source_recipe_operations_transport_kind_check",
+      sql`${table.transportKind} in ('http', 'graphql', 'mcp', 'internal')`,
+    ),
+    check(
+      "source_recipe_operations_kind_check",
+      sql`${table.operationKind} in ('read', 'write', 'delete', 'unknown')`,
+    ),
+    check(
+      "source_recipe_operations_provider_kind_check",
+      sql`${table.providerKind} in ('mcp', 'openapi', 'graphql', 'internal')`,
+    ),
+  ],
+);
+
 export const credentialsTable = pgTable(
   tableNames.credentials,
   {
     id: text("id").notNull().primaryKey(),
     workspaceId: text("workspace_id").notNull(),
+    sourceId: text("source_id").notNull(),
+    actorAccountId: text("actor_account_id"),
     authKind: text("auth_kind").notNull(),
     authHeaderName: text("auth_header_name").notNull(),
     authPrefix: text("auth_prefix").notNull(),
@@ -196,6 +385,17 @@ export const credentialsTable = pgTable(
       table.updatedAt,
       table.id,
     ),
+    uniqueIndex("credentials_workspace_source_actor_idx").on(
+      table.workspaceId,
+      table.sourceId,
+      table.actorAccountId,
+    ),
+    index("credentials_workspace_source_idx").on(
+      table.workspaceId,
+      table.sourceId,
+      table.updatedAt,
+      table.id,
+    ),
     check(
       "credentials_auth_kind_check",
       sql`${table.authKind} in ('bearer', 'oauth2')`,
@@ -203,22 +403,27 @@ export const credentialsTable = pgTable(
   ],
 );
 
-export const sourceCredentialBindingsTable = pgTable(
-  tableNames.sourceCredentialBindings,
+export const workspaceSourceOauthClientsTable = pgTable(
+  tableNames.workspaceSourceOauthClients,
   {
     id: text("id").notNull().primaryKey(),
     workspaceId: text("workspace_id").notNull(),
     sourceId: text("source_id").notNull(),
-    credentialId: text("credential_id").notNull(),
+    providerKey: text("provider_key").notNull(),
+    clientId: text("client_id").notNull(),
+    clientSecretProviderId: text("client_secret_provider_id"),
+    clientSecretHandle: text("client_secret_handle"),
+    clientMetadataJson: text("client_metadata_json"),
     createdAt: bigint("created_at", { mode: "number" }).notNull(),
     updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
   },
   (table) => [
-    uniqueIndex("source_credential_bindings_workspace_source_idx").on(
+    uniqueIndex("workspace_source_oauth_clients_workspace_source_provider_idx").on(
       table.workspaceId,
       table.sourceId,
+      table.providerKey,
     ),
-    index("source_credential_bindings_workspace_idx").on(
+    index("workspace_source_oauth_clients_workspace_idx").on(
       table.workspaceId,
       table.updatedAt,
       table.sourceId,
@@ -379,21 +584,13 @@ export const sourceAuthSessionsTable = pgTable(
     id: text("id").notNull().primaryKey(),
     workspaceId: text("workspace_id").notNull(),
     sourceId: text("source_id").notNull(),
+    actorAccountId: text("actor_account_id"),
     executionId: text("execution_id"),
     interactionId: text("interaction_id"),
-    strategy: text("strategy").notNull(),
+    providerKind: text("provider_kind").notNull(),
     status: text("status").notNull(),
-    endpoint: text("endpoint").notNull(),
     state: text("state").notNull(),
-    redirectUri: text("redirect_uri").notNull(),
-    scope: text("scope"),
-    resourceMetadataUrl: text("resource_metadata_url"),
-    authorizationServerUrl: text("authorization_server_url"),
-    resourceMetadataJson: text("resource_metadata_json"),
-    authorizationServerMetadataJson: text("authorization_server_metadata_json"),
-    clientInformationJson: text("client_information_json"),
-    codeVerifier: text("code_verifier"),
-    authorizationUrl: text("authorization_url"),
+    sessionDataJson: text("session_data_json").notNull(),
     errorText: text("error_text"),
     completedAt: bigint("completed_at", { mode: "number" }),
     createdAt: bigint("created_at", { mode: "number" }).notNull(),
@@ -408,14 +605,15 @@ export const sourceAuthSessionsTable = pgTable(
     index("source_auth_sessions_pending_idx").on(
       table.workspaceId,
       table.sourceId,
+      table.actorAccountId,
       table.status,
       table.updatedAt,
       table.id,
     ),
     uniqueIndex("source_auth_sessions_state_idx").on(table.state),
     check(
-      "source_auth_sessions_strategy_check",
-      sql`${table.strategy} in ('oauth2_authorization_code')`,
+      "source_auth_sessions_provider_kind_check",
+      sql`${table.providerKind} in ('mcp_oauth', 'oauth2_pkce')`,
     ),
     check(
       "source_auth_sessions_status_check",
@@ -561,12 +759,16 @@ export const drizzleSchema = {
   organizationMembershipsTable,
   workspacesTable,
   sourcesTable,
+  sourceRecipesTable,
+  sourceRecipeRevisionsTable,
+  sourceRecipeDocumentsTable,
+  sourceRecipeOperationsTable,
   credentialsTable,
+  workspaceSourceOauthClientsTable,
   toolArtifactsTable,
   toolArtifactParametersTable,
   toolArtifactRequestBodyContentTypesTable,
   toolArtifactRefHintKeysTable,
-  sourceCredentialBindingsTable,
   secretMaterialsTable,
   sourceAuthSessionsTable,
   policiesTable,

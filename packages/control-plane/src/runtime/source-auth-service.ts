@@ -8,6 +8,7 @@ import {
   type SqlControlPlaneRows,
 } from "#persistence";
 import {
+  AccountId,
   ExecutionIdSchema,
   type SecretMaterialPurpose,
   Source,
@@ -163,26 +164,73 @@ const probeMcpSourceWithoutAuth = (
   });
 
 export const createTerminalSourceAuthSessionPatch = (input: {
+  sessionDataJson: string;
   status: Extract<SourceAuthSession["status"], "completed" | "failed" | "cancelled">;
   now: number;
   errorText: string | null;
-  resourceMetadataUrl?: string | null;
-  authorizationServerUrl?: string | null;
-  resourceMetadataJson?: string | null;
-  authorizationServerMetadataJson?: string | null;
 }) => ({
   status: input.status,
   errorText: input.errorText,
   completedAt: input.now,
   updatedAt: input.now,
-  codeVerifier: null,
-  authorizationUrl: null,
-  clientInformationJson: null,
-  resourceMetadataUrl: input.resourceMetadataUrl ?? null,
-  authorizationServerUrl: input.authorizationServerUrl ?? null,
-  resourceMetadataJson: input.resourceMetadataJson ?? null,
-  authorizationServerMetadataJson: input.authorizationServerMetadataJson ?? null,
+  sessionDataJson: input.sessionDataJson,
 }) satisfies Partial<SourceAuthSession>;
+
+type McpSourceAuthSessionData = {
+  kind: "mcp_oauth";
+  endpoint: string;
+  redirectUri: string;
+  scope: string | null;
+  resourceMetadataUrl: string | null;
+  authorizationServerUrl: string | null;
+  resourceMetadataJson: string | null;
+  authorizationServerMetadataJson: string | null;
+  clientInformationJson: string | null;
+  codeVerifier: string | null;
+  authorizationUrl: string | null;
+};
+
+const encodeMcpSourceAuthSessionData = (
+  sessionData: McpSourceAuthSessionData,
+): string => JSON.stringify(sessionData);
+
+const decodeMcpSourceAuthSessionData = (
+  session: Pick<SourceAuthSession, "id" | "providerKind" | "sessionDataJson">,
+): McpSourceAuthSessionData => {
+  if (session.providerKind !== "mcp_oauth") {
+    throw new Error(`Unsupported source auth provider for session ${session.id}`);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(session.sessionDataJson) as unknown;
+  } catch (cause) {
+    throw new Error(
+      `Invalid source auth session data for ${session.id}: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+  }
+
+  if (
+    parsed === null
+    || typeof parsed !== "object"
+    || (parsed as { kind?: unknown }).kind !== "mcp_oauth"
+  ) {
+    throw new Error(`Invalid source auth session payload for ${session.id}`);
+  }
+
+  return parsed as McpSourceAuthSessionData;
+};
+
+const mergeMcpSourceAuthSessionData = (input: {
+  session: Pick<SourceAuthSession, "id" | "providerKind" | "sessionDataJson">;
+  patch: Partial<McpSourceAuthSessionData>;
+}): string => {
+  const existing = decodeMcpSourceAuthSessionData(input.session);
+  return encodeMcpSourceAuthSessionData({
+    ...existing,
+    ...input.patch,
+  });
+};
 
 
 const completeLiveInteraction = (input: {
@@ -217,6 +265,7 @@ const completeLiveInteraction = (input: {
   });
 
 const updateSourceStatus = (rows: SqlControlPlaneRows, source: Source, input: {
+  actorAccountId?: AccountId | null;
   status: Source["status"];
   lastError?: string | null;
   auth?: Source["auth"];
@@ -225,6 +274,7 @@ const updateSourceStatus = (rows: SqlControlPlaneRows, source: Source, input: {
     const latest = yield* loadSourceById(rows, {
       workspaceId: source.workspaceId,
       sourceId: source.id,
+      actorAccountId: input.actorAccountId,
     });
 
     return yield* persistSource(rows, {
@@ -233,6 +283,8 @@ const updateSourceStatus = (rows: SqlControlPlaneRows, source: Source, input: {
       lastError: input.lastError ?? null,
       auth: input.auth ?? latest.auth,
       updatedAt: Date.now(),
+    }, {
+      actorAccountId: input.actorAccountId,
     });
   });
 
@@ -277,6 +329,7 @@ export type ExecutorAddSourceInput =
   | {
       kind?: "mcp";
       workspaceId: WorkspaceId;
+      actorAccountId?: AccountId | null;
       executionId: SourceAuthSession["executionId"];
       interactionId: SourceAuthSession["interactionId"];
       endpoint: string;
@@ -286,6 +339,7 @@ export type ExecutorAddSourceInput =
   | {
       kind: "openapi";
       workspaceId: WorkspaceId;
+      actorAccountId?: AccountId | null;
       executionId: SourceAuthSession["executionId"];
       interactionId: SourceAuthSession["interactionId"];
       endpoint: string;
@@ -297,6 +351,7 @@ export type ExecutorAddSourceInput =
   | {
       kind: "graphql";
       workspaceId: WorkspaceId;
+      actorAccountId?: AccountId | null;
       executionId: SourceAuthSession["executionId"];
       interactionId: SourceAuthSession["interactionId"];
       endpoint: string;
@@ -307,6 +362,7 @@ export type ExecutorAddSourceInput =
 
 export type ConnectMcpSourceInput = {
   workspaceId: WorkspaceId;
+  actorAccountId?: AccountId | null;
   sourceId?: Source["id"] | null;
   endpoint: string;
   name?: string | null;
@@ -332,6 +388,7 @@ export type SourceOAuthProviderInput = {
 
 export type StartSourceOAuthSessionInput = {
   workspaceId: WorkspaceId;
+  actorAccountId?: AccountId | null;
   provider: SourceOAuthProviderInput;
   baseUrl?: string | null;
   displayName?: string | null;
@@ -482,6 +539,7 @@ const connectMcpSourceInternal = (input: {
   getLocalServerBaseUrl?: () => string | undefined;
   baseUrl?: string | null;
   workspaceId: WorkspaceId;
+  actorAccountId?: AccountId | null;
   sourceId?: Source["id"] | null;
   executionId?: SourceAuthSession["executionId"];
   interactionId?: SourceAuthSession["interactionId"];
@@ -502,6 +560,7 @@ const connectMcpSourceInternal = (input: {
         ? loadSourceById(input.rows, {
             workspaceId: input.workspaceId,
             sourceId: input.sourceId,
+            actorAccountId: input.actorAccountId,
           }).pipe(
             Effect.flatMap((source) =>
               source.kind === "mcp"
@@ -509,7 +568,9 @@ const connectMcpSourceInternal = (input: {
                 : Effect.fail(new Error(`Expected MCP source, received ${source.kind}`)),
             ),
           )
-        : loadSourcesInWorkspace(input.rows, input.workspaceId).pipe(
+        : loadSourcesInWorkspace(input.rows, input.workspaceId, {
+            actorAccountId: input.actorAccountId,
+          }).pipe(
             Effect.map((sources) =>
               sources.find(
                 (source) =>
@@ -569,7 +630,9 @@ const connectMcpSourceInternal = (input: {
           now,
         });
 
-    const persistedDraft = yield* persistSource(input.rows, draftSource);
+    const persistedDraft = yield* persistSource(input.rows, draftSource, {
+      actorAccountId: input.actorAccountId,
+    });
     yield* syncSourceToolArtifacts({
       rows: input.rows,
       source: persistedDraft,
@@ -588,6 +651,7 @@ const connectMcpSourceInternal = (input: {
       onRight: (result) =>
         Effect.gen(function* () {
           const connected = yield* updateSourceStatus(input.rows, persistedDraft, {
+            actorAccountId: input.actorAccountId,
             status: "connected",
             lastError: null,
             auth: { kind: "none" },
@@ -603,6 +667,7 @@ const connectMcpSourceInternal = (input: {
           return yield* Either.match(indexed, {
             onLeft: (error) =>
               updateSourceStatus(input.rows, connected, {
+                actorAccountId: input.actorAccountId,
                 status: "error",
                 lastError: error.message,
               }).pipe(
@@ -642,6 +707,7 @@ const connectMcpSourceInternal = (input: {
     });
 
     const authRequiredSource = yield* updateSourceStatus(input.rows, persistedDraft, {
+      actorAccountId: input.actorAccountId,
       status: "auth_required",
       lastError: null,
     });
@@ -651,21 +717,25 @@ const connectMcpSourceInternal = (input: {
       id: sessionId,
       workspaceId: input.workspaceId,
       sourceId: authRequiredSource.id,
+      actorAccountId: input.actorAccountId ?? null,
       executionId: input.executionId ?? null,
       interactionId: input.interactionId ?? null,
-      strategy: "oauth2_authorization_code",
+      providerKind: "mcp_oauth",
       status: "pending",
-      endpoint: normalizedEndpoint,
       state,
-      redirectUri: redirectUrl,
-      scope: null,
-      resourceMetadataUrl: oauthStart.resourceMetadataUrl,
-      authorizationServerUrl: oauthStart.authorizationServerUrl,
-      resourceMetadataJson: oauthStart.resourceMetadataJson,
-      authorizationServerMetadataJson: oauthStart.authorizationServerMetadataJson,
-      clientInformationJson: oauthStart.clientInformationJson,
-      codeVerifier: oauthStart.codeVerifier,
-      authorizationUrl: oauthStart.authorizationUrl,
+      sessionDataJson: encodeMcpSourceAuthSessionData({
+        kind: "mcp_oauth",
+        endpoint: normalizedEndpoint,
+        redirectUri: redirectUrl,
+        scope: null,
+        resourceMetadataUrl: oauthStart.resourceMetadataUrl,
+        authorizationServerUrl: oauthStart.authorizationServerUrl,
+        resourceMetadataJson: oauthStart.resourceMetadataJson,
+        authorizationServerMetadataJson: oauthStart.authorizationServerMetadataJson,
+        clientInformationJson: oauthStart.clientInformationJson,
+        codeVerifier: oauthStart.codeVerifier,
+        authorizationUrl: oauthStart.authorizationUrl,
+      }),
       errorText: null,
       completedAt: null,
       createdAt: sessionNow,
@@ -694,6 +764,9 @@ const addExecutorHttpSource = (input: {
     const existingSources = yield* loadSourcesInWorkspace(
       input.rows,
       input.sourceInput.workspaceId,
+      {
+        actorAccountId: input.sourceInput.actorAccountId,
+      },
     );
     const existing = existingSources.find((source) => {
       if (source.kind !== input.sourceInput.kind) {
@@ -757,7 +830,9 @@ const addExecutorHttpSource = (input: {
             now,
           });
 
-      const persistedDraft = yield* persistSource(input.rows, draftSource);
+      const persistedDraft = yield* persistSource(input.rows, draftSource, {
+        actorAccountId: input.sourceInput.actorAccountId,
+      });
       return {
         kind: "credential_required",
         source: persistedDraft,
@@ -802,7 +877,9 @@ const addExecutorHttpSource = (input: {
           now,
         });
 
-    const persistedDraft = yield* persistSource(input.rows, draftSource);
+    const persistedDraft = yield* persistSource(input.rows, draftSource, {
+      actorAccountId: input.sourceInput.actorAccountId,
+    });
     const synced = yield* Effect.either(
       syncSourceToolArtifacts({
         rows: input.rows,
@@ -817,6 +894,7 @@ const addExecutorHttpSource = (input: {
     return yield* Either.match(synced, {
       onLeft: (error) =>
         updateSourceStatus(input.rows, persistedDraft, {
+          actorAccountId: input.sourceInput.actorAccountId,
           status: "error",
           lastError: error.message,
         }).pipe(
@@ -824,6 +902,7 @@ const addExecutorHttpSource = (input: {
         ),
       onRight: () =>
         updateSourceStatus(input.rows, persistedDraft, {
+          actorAccountId: input.sourceInput.actorAccountId,
           status: "connected",
           lastError: null,
         }).pipe(
@@ -841,6 +920,7 @@ type RuntimeSourceAuthServiceShape = {
   getSourceById: (input: {
     workspaceId: WorkspaceId;
     sourceId: Source["id"];
+    actorAccountId?: AccountId | null;
   }) => Effect.Effect<Source, Error, never>;
   getLocalServerBaseUrl: () => string | null;
   storeSecretMaterial: (input: {
@@ -869,6 +949,7 @@ type RuntimeSourceAuthServiceShape = {
   completeSourceCredentialSetup: (input: {
     workspaceId: WorkspaceId;
     sourceId: Source["id"];
+    actorAccountId?: AccountId | null;
     state: string;
     code?: string | null;
     error?: string | null;
@@ -897,10 +978,11 @@ export const createRuntimeSourceAuthService = (input: {
       value,
     }),
 
-  getSourceById: ({ workspaceId, sourceId }) =>
+  getSourceById: ({ workspaceId, sourceId, actorAccountId }) =>
     loadSourceById(input.rows, {
       workspaceId,
       sourceId,
+      actorAccountId,
     }),
 
   addExecutorSource: (sourceInput, options) =>
@@ -915,6 +997,7 @@ export const createRuntimeSourceAuthService = (input: {
           rows: input.rows,
           getLocalServerBaseUrl: input.getLocalServerBaseUrl,
           workspaceId: sourceInput.workspaceId,
+          actorAccountId: sourceInput.actorAccountId,
           executionId: sourceInput.executionId,
           interactionId: sourceInput.interactionId,
           endpoint: sourceInput.endpoint,
@@ -930,6 +1013,7 @@ export const createRuntimeSourceAuthService = (input: {
       rows: input.rows,
       getLocalServerBaseUrl: input.getLocalServerBaseUrl,
       workspaceId: sourceInput.workspaceId,
+      actorAccountId: sourceInput.actorAccountId,
       sourceId: sourceInput.sourceId,
       executionId: null,
       interactionId: null,
@@ -972,21 +1056,25 @@ export const createRuntimeSourceAuthService = (input: {
         id: sessionId,
         workspaceId: oauthInput.workspaceId,
         sourceId: SourceIdSchema.make(`oauth_draft_${crypto.randomUUID()}`),
+        actorAccountId: oauthInput.actorAccountId ?? null,
         executionId: null,
         interactionId: null,
-        strategy: "oauth2_authorization_code",
+        providerKind: "mcp_oauth",
         status: "pending",
-        endpoint,
         state,
-        redirectUri: redirectUrl,
-        scope: oauthInput.provider.kind,
-        resourceMetadataUrl: oauthStart.resourceMetadataUrl,
-        authorizationServerUrl: oauthStart.authorizationServerUrl,
-        resourceMetadataJson: oauthStart.resourceMetadataJson,
-        authorizationServerMetadataJson: oauthStart.authorizationServerMetadataJson,
-        clientInformationJson: oauthStart.clientInformationJson,
-        codeVerifier: oauthStart.codeVerifier,
-        authorizationUrl: oauthStart.authorizationUrl,
+        sessionDataJson: encodeMcpSourceAuthSessionData({
+          kind: "mcp_oauth",
+          endpoint,
+          redirectUri: redirectUrl,
+          scope: oauthInput.provider.kind,
+          resourceMetadataUrl: oauthStart.resourceMetadataUrl,
+          authorizationServerUrl: oauthStart.authorizationServerUrl,
+          resourceMetadataJson: oauthStart.resourceMetadataJson,
+          authorizationServerMetadataJson: oauthStart.authorizationServerMetadataJson,
+          clientInformationJson: oauthStart.clientInformationJson,
+          codeVerifier: oauthStart.codeVerifier,
+          authorizationUrl: oauthStart.authorizationUrl,
+        }),
         errorText: null,
         completedAt: null,
         createdAt: now,
@@ -1012,6 +1100,7 @@ export const createRuntimeSourceAuthService = (input: {
       }
 
       const session = sessionOption.value;
+      const sessionData = decodeMcpSourceAuthSessionData(session);
       if (session.status === "completed") {
         return yield* Effect.fail(new Error(`Source auth session ${session.id} is already completed`));
       }
@@ -1027,13 +1116,10 @@ export const createRuntimeSourceAuthService = (input: {
         yield* input.rows.sourceAuthSessions.update(
           session.id,
           createTerminalSourceAuthSessionPatch({
+            sessionDataJson: session.sessionDataJson,
             status: "failed",
             now: failedAt,
             errorText: reason,
-            resourceMetadataUrl: session.resourceMetadataUrl,
-            authorizationServerUrl: session.authorizationServerUrl,
-            resourceMetadataJson: session.resourceMetadataJson,
-            authorizationServerMetadataJson: session.authorizationServerMetadataJson,
           }),
         );
 
@@ -1045,31 +1131,31 @@ export const createRuntimeSourceAuthService = (input: {
         return yield* Effect.fail(new Error("Missing OAuth authorization code"));
       }
 
-      if (session.codeVerifier === null) {
+      if (sessionData.codeVerifier === null) {
         return yield* Effect.fail(new Error("OAuth session is missing the PKCE code verifier"));
       }
 
-      if (session.scope !== null && session.scope !== "mcp") {
-        return yield* Effect.fail(new Error(`Unsupported OAuth provider: ${session.scope}`));
+      if (sessionData.scope !== null && sessionData.scope !== "mcp") {
+        return yield* Effect.fail(new Error(`Unsupported OAuth provider: ${sessionData.scope}`));
       }
 
       const exchanged = yield* exchangeMcpOAuthAuthorizationCode({
         session: {
-          endpoint: session.endpoint,
-          redirectUrl: session.redirectUri,
-          codeVerifier: session.codeVerifier,
-          resourceMetadataUrl: session.resourceMetadataUrl,
-          authorizationServerUrl: session.authorizationServerUrl,
-          resourceMetadataJson: session.resourceMetadataJson,
-          authorizationServerMetadataJson: session.authorizationServerMetadataJson,
-          clientInformationJson: session.clientInformationJson,
+          endpoint: sessionData.endpoint,
+          redirectUrl: sessionData.redirectUri,
+          codeVerifier: sessionData.codeVerifier,
+          resourceMetadataUrl: sessionData.resourceMetadataUrl,
+          authorizationServerUrl: sessionData.authorizationServerUrl,
+          resourceMetadataJson: sessionData.resourceMetadataJson,
+          authorizationServerMetadataJson: sessionData.authorizationServerMetadataJson,
+          clientInformationJson: sessionData.clientInformationJson,
         },
         code: authorizationCode,
       });
 
       const oauthSecretName = resolveSourceOAuthSecretName({
         displayName: readSourceOAuthSessionDisplayName(session.state),
-        endpoint: session.endpoint,
+        endpoint: sessionData.endpoint,
       });
       const accessTokenRef = yield* storeSecretMaterial({
         purpose: "oauth_access_token",
@@ -1095,13 +1181,20 @@ export const createRuntimeSourceAuthService = (input: {
       yield* input.rows.sourceAuthSessions.update(
         session.id,
         createTerminalSourceAuthSessionPatch({
+          sessionDataJson: mergeMcpSourceAuthSessionData({
+            session,
+            patch: {
+              codeVerifier: null,
+              authorizationUrl: null,
+              resourceMetadataUrl: exchanged.resourceMetadataUrl,
+              authorizationServerUrl: exchanged.authorizationServerUrl,
+              resourceMetadataJson: exchanged.resourceMetadataJson,
+              authorizationServerMetadataJson: exchanged.authorizationServerMetadataJson,
+            },
+          }),
           status: "completed",
           now: Date.now(),
           errorText: null,
-          resourceMetadataUrl: exchanged.resourceMetadataUrl,
-          authorizationServerUrl: exchanged.authorizationServerUrl,
-          resourceMetadataJson: exchanged.resourceMetadataJson,
-          authorizationServerMetadataJson: exchanged.authorizationServerMetadataJson,
         }),
       );
 
@@ -1114,6 +1207,7 @@ export const createRuntimeSourceAuthService = (input: {
   completeSourceCredentialSetup: ({
     workspaceId,
     sourceId,
+    actorAccountId,
     state,
     code,
     error,
@@ -1126,6 +1220,7 @@ export const createRuntimeSourceAuthService = (input: {
       }
 
       const session = sessionOption.value;
+      const sessionData = decodeMcpSourceAuthSessionData(session);
       if (session.workspaceId !== workspaceId || session.sourceId !== sourceId) {
         return yield* Effect.fail(
           new Error(
@@ -1133,10 +1228,19 @@ export const createRuntimeSourceAuthService = (input: {
           ),
         );
       }
+      if (
+        actorAccountId !== undefined
+        && (session.actorAccountId ?? null) !== (actorAccountId ?? null)
+      ) {
+        return yield* Effect.fail(
+          new Error(`Source auth session ${session.id} does not match the active account`),
+        );
+      }
 
       const source = yield* loadSourceById(input.rows, {
         workspaceId: session.workspaceId,
         sourceId: session.sourceId,
+        actorAccountId: session.actorAccountId,
       });
 
       if (session.status === "completed") {
@@ -1156,16 +1260,14 @@ export const createRuntimeSourceAuthService = (input: {
         yield* input.rows.sourceAuthSessions.update(
           session.id,
           createTerminalSourceAuthSessionPatch({
+            sessionDataJson: session.sessionDataJson,
             status: "failed",
             now: failedAt,
             errorText: reason,
-            resourceMetadataUrl: session.resourceMetadataUrl,
-            authorizationServerUrl: session.authorizationServerUrl,
-            resourceMetadataJson: session.resourceMetadataJson,
-            authorizationServerMetadataJson: session.authorizationServerMetadataJson,
           }),
         );
         const failedSource = yield* updateSourceStatus(input.rows, source, {
+          actorAccountId: session.actorAccountId,
           status: "error",
           lastError: reason,
         });
@@ -1191,20 +1293,20 @@ export const createRuntimeSourceAuthService = (input: {
         return yield* Effect.fail(new Error("Missing OAuth authorization code"));
       }
 
-      if (session.codeVerifier === null) {
+      if (sessionData.codeVerifier === null) {
         return yield* Effect.fail(new Error("OAuth session is missing the PKCE code verifier"));
       }
 
       const exchanged = yield* exchangeMcpOAuthAuthorizationCode({
         session: {
-          endpoint: session.endpoint,
-          redirectUrl: session.redirectUri,
-          codeVerifier: session.codeVerifier,
-          resourceMetadataUrl: session.resourceMetadataUrl,
-          authorizationServerUrl: session.authorizationServerUrl,
-          resourceMetadataJson: session.resourceMetadataJson,
-          authorizationServerMetadataJson: session.authorizationServerMetadataJson,
-          clientInformationJson: session.clientInformationJson,
+          endpoint: sessionData.endpoint,
+          redirectUrl: sessionData.redirectUri,
+          codeVerifier: sessionData.codeVerifier,
+          resourceMetadataUrl: sessionData.resourceMetadataUrl,
+          authorizationServerUrl: sessionData.authorizationServerUrl,
+          resourceMetadataJson: sessionData.resourceMetadataJson,
+          authorizationServerMetadataJson: sessionData.authorizationServerMetadataJson,
+          clientInformationJson: sessionData.clientInformationJson,
         },
         code: authorizationCode,
       });
@@ -1228,6 +1330,7 @@ export const createRuntimeSourceAuthService = (input: {
 
       const now = Date.now();
       const connectedSource = yield* updateSourceStatus(input.rows, source, {
+        actorAccountId: session.actorAccountId,
         status: "connected",
         lastError: null,
         auth: {
@@ -1248,6 +1351,7 @@ export const createRuntimeSourceAuthService = (input: {
       yield* Either.match(indexed, {
         onLeft: (error) =>
           updateSourceStatus(input.rows, connectedSource, {
+            actorAccountId: session.actorAccountId,
             status: "error",
             lastError: error.message,
           }).pipe(
@@ -1259,13 +1363,20 @@ export const createRuntimeSourceAuthService = (input: {
       yield* input.rows.sourceAuthSessions.update(
         session.id,
         createTerminalSourceAuthSessionPatch({
+          sessionDataJson: mergeMcpSourceAuthSessionData({
+            session,
+            patch: {
+              codeVerifier: null,
+              authorizationUrl: null,
+              resourceMetadataUrl: exchanged.resourceMetadataUrl,
+              authorizationServerUrl: exchanged.authorizationServerUrl,
+              resourceMetadataJson: exchanged.resourceMetadataJson,
+              authorizationServerMetadataJson: exchanged.authorizationServerMetadataJson,
+            },
+          }),
           status: "completed",
           now,
           errorText: null,
-          resourceMetadataUrl: exchanged.resourceMetadataUrl,
-          authorizationServerUrl: exchanged.authorizationServerUrl,
-          resourceMetadataJson: exchanged.resourceMetadataJson,
-          authorizationServerMetadataJson: exchanged.authorizationServerMetadataJson,
         }),
       );
 

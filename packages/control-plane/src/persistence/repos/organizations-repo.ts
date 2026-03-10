@@ -6,7 +6,7 @@ import {
 } from "#schema";
 import * as Option from "effect/Option";
 import { Schema } from "effect";
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 
 import type { DrizzleClient } from "../client";
 import type { DrizzleTables } from "../schema";
@@ -136,6 +136,13 @@ export const createOrganizationsRepo = (
           .select({ id: tables.executionsTable.id })
           .from(tables.executionsTable)
           .where(inArray(tables.executionsTable.workspaceId, workspaceIds));
+        const sourceRows = await tx
+          .select({
+            sourceId: tables.sourcesTable.sourceId,
+            recipeId: tables.sourcesTable.recipeId,
+          })
+          .from(tables.sourcesTable)
+          .where(inArray(tables.sourcesTable.workspaceId, workspaceIds));
         const credentials = await tx
           .select({
             tokenProviderId: tables.credentialsTable.tokenProviderId,
@@ -147,6 +154,28 @@ export const createOrganizationsRepo = (
           .where(inArray(tables.credentialsTable.workspaceId, workspaceIds));
 
         const executionIds = executionRows.map((execution) => execution.id);
+        const sourceIds = sourceRows.map((source) => source.sourceId);
+        const recipeIds = sourceRows.map((source) => source.recipeId);
+        const recipeRevisionRows = recipeIds.length > 0
+          ? await tx
+            .select({ id: tables.sourceRecipeRevisionsTable.id })
+            .from(tables.sourceRecipeRevisionsTable)
+            .where(inArray(tables.sourceRecipeRevisionsTable.recipeId, recipeIds))
+          : [];
+        const recipeRevisionIds = recipeRevisionRows.map((revision) => revision.id);
+        const toolArtifactPaths = sourceIds.length > 0
+          ? (
+            await tx
+              .select({ path: tables.toolArtifactsTable.path })
+              .from(tables.toolArtifactsTable)
+              .where(
+                and(
+                  inArray(tables.toolArtifactsTable.workspaceId, workspaceIds),
+                  inArray(tables.toolArtifactsTable.sourceId, sourceIds),
+                ),
+              )
+          ).map((row) => row.path)
+          : [];
         const postgresSecretHandles = postgresSecretHandlesFromCredentials(credentials);
 
         if (executionIds.length > 0) {
@@ -154,6 +183,39 @@ export const createOrganizationsRepo = (
             .delete(tables.executionInteractionsTable)
             .where(
               inArray(tables.executionInteractionsTable.executionId, executionIds),
+            );
+        }
+
+        if (toolArtifactPaths.length > 0) {
+          await tx
+            .delete(tables.toolArtifactParametersTable)
+            .where(
+              and(
+                inArray(tables.toolArtifactParametersTable.workspaceId, workspaceIds),
+                or(...toolArtifactPaths.map((path) => eq(tables.toolArtifactParametersTable.path, path))),
+              ),
+            );
+
+          await tx
+            .delete(tables.toolArtifactRequestBodyContentTypesTable)
+            .where(
+              and(
+                inArray(tables.toolArtifactRequestBodyContentTypesTable.workspaceId, workspaceIds),
+                or(
+                  ...toolArtifactPaths.map((path) =>
+                    eq(tables.toolArtifactRequestBodyContentTypesTable.path, path)
+                  ),
+                ),
+              ),
+            );
+
+          await tx
+            .delete(tables.toolArtifactRefHintKeysTable)
+            .where(
+              and(
+                inArray(tables.toolArtifactRefHintKeysTable.workspaceId, workspaceIds),
+                or(...toolArtifactPaths.map((path) => eq(tables.toolArtifactRefHintKeysTable.path, path))),
+              ),
             );
         }
 
@@ -166,16 +228,40 @@ export const createOrganizationsRepo = (
           .where(inArray(tables.sourceAuthSessionsTable.workspaceId, workspaceIds));
 
         await tx
-          .delete(tables.sourceCredentialBindingsTable)
-          .where(inArray(tables.sourceCredentialBindingsTable.workspaceId, workspaceIds));
+          .delete(tables.workspaceSourceOauthClientsTable)
+          .where(inArray(tables.workspaceSourceOauthClientsTable.workspaceId, workspaceIds));
 
         await tx
           .delete(tables.credentialsTable)
           .where(inArray(tables.credentialsTable.workspaceId, workspaceIds));
 
         await tx
+          .delete(tables.toolArtifactsTable)
+          .where(inArray(tables.toolArtifactsTable.workspaceId, workspaceIds));
+
+        await tx
           .delete(tables.sourcesTable)
           .where(inArray(tables.sourcesTable.workspaceId, workspaceIds));
+
+        if (recipeRevisionIds.length > 0) {
+          await tx
+            .delete(tables.sourceRecipeDocumentsTable)
+            .where(inArray(tables.sourceRecipeDocumentsTable.recipeRevisionId, recipeRevisionIds));
+
+          await tx
+            .delete(tables.sourceRecipeOperationsTable)
+            .where(inArray(tables.sourceRecipeOperationsTable.recipeRevisionId, recipeRevisionIds));
+        }
+
+        if (recipeIds.length > 0) {
+          await tx
+            .delete(tables.sourceRecipeRevisionsTable)
+            .where(inArray(tables.sourceRecipeRevisionsTable.recipeId, recipeIds));
+
+          await tx
+            .delete(tables.sourceRecipesTable)
+            .where(inArray(tables.sourceRecipesTable.id, recipeIds));
+        }
 
         await tx
           .delete(tables.policiesTable)

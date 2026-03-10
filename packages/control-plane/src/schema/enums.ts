@@ -21,6 +21,22 @@ export {
   type SourceTransport,
 } from "./models/source";
 export {
+  SourceRecipeDocumentKindSchema,
+  SourceRecipeImporterKindSchema,
+  SourceRecipeKindSchema,
+  SourceRecipeOperationKindSchema,
+  SourceRecipeOperationProviderKindSchema,
+  SourceRecipeTransportKindSchema,
+  SourceRecipeVisibilitySchema,
+  type SourceRecipeDocumentKind,
+  type SourceRecipeImporterKind,
+  type SourceRecipeKind,
+  type SourceRecipeOperationKind,
+  type SourceRecipeOperationProviderKind,
+  type SourceRecipeTransportKind,
+  type SourceRecipeVisibility,
+} from "./models/source-recipe";
+export {
   SourceAuthInferenceSchema,
   SourceDiscoveryAuthKindSchema,
   SourceDiscoveryAuthParameterLocationSchema,
@@ -40,6 +56,12 @@ export {
   CredentialAuthKindSchema,
   type CredentialAuthKind,
 } from "./models/credential";
+export {
+  SourceAuthSessionProviderKindSchema,
+  SourceAuthSessionStatusSchema,
+  type SourceAuthSessionProviderKind,
+  type SourceAuthSessionStatus,
+} from "./models/source-auth-session";
 export {
   PolicyApprovalModeSchema,
   PolicyEffectSchema,

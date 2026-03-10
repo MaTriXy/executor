@@ -105,19 +105,15 @@ export const createSecretMaterialsRepo = (
           tokenProviderId: tables.credentialsTable.tokenProviderId,
           refreshTokenHandle: tables.credentialsTable.refreshTokenHandle,
           refreshTokenProviderId: tables.credentialsTable.refreshTokenProviderId,
-          sourceId: tables.sourceCredentialBindingsTable.sourceId,
+          sourceId: tables.credentialsTable.sourceId,
           sourceName: tables.sourcesTable.name,
         })
         .from(tables.credentialsTable)
         .innerJoin(
-          tables.sourceCredentialBindingsTable,
-          eq(tables.credentialsTable.id, tables.sourceCredentialBindingsTable.credentialId),
-        )
-        .innerJoin(
           tables.sourcesTable,
           and(
-            eq(tables.sourceCredentialBindingsTable.workspaceId, tables.sourcesTable.workspaceId),
-            eq(tables.sourceCredentialBindingsTable.sourceId, tables.sourcesTable.sourceId),
+            eq(tables.credentialsTable.workspaceId, tables.sourcesTable.workspaceId),
+            eq(tables.credentialsTable.sourceId, tables.sourcesTable.sourceId),
           ),
         )
         .where(

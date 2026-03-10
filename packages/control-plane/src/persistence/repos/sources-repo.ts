@@ -4,7 +4,7 @@ import {
 } from "#schema";
 import * as Option from "effect/Option";
 import { Schema } from "effect";
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, asc, count, eq, or } from "drizzle-orm";
 
 import type { DrizzleClient } from "../client";
 import type { DrizzleTables } from "../schema";
@@ -18,12 +18,15 @@ const toSourceUpdateSet = (
 ): Partial<DrizzleTables["sourcesTable"]["$inferInsert"]> => {
   const set: Partial<DrizzleTables["sourcesTable"]["$inferInsert"]> = {};
 
+  if (patch.recipeId !== undefined) set.recipeId = patch.recipeId;
+  if (patch.recipeRevisionId !== undefined) set.recipeRevisionId = patch.recipeRevisionId;
   if (patch.name !== undefined) set.name = patch.name;
   if (patch.kind !== undefined) set.kind = patch.kind;
   if (patch.endpoint !== undefined) set.endpoint = patch.endpoint;
   if (patch.status !== undefined) set.status = patch.status;
   if (patch.enabled !== undefined) set.enabled = patch.enabled;
   if (patch.namespace !== undefined) set.namespace = patch.namespace;
+  if (patch.bindingConfigJson !== undefined) set.bindingConfigJson = patch.bindingConfigJson;
   if (patch.transport !== undefined) set.transport = patch.transport;
   if (patch.queryParamsJson !== undefined) set.queryParamsJson = patch.queryParamsJson;
   if (patch.headersJson !== undefined) set.headersJson = patch.headersJson;
@@ -43,6 +46,20 @@ export const createSourcesRepo = (
   client: DrizzleClient,
   tables: DrizzleTables,
 ) => ({
+  listAll: () =>
+    client.use("rows.sources.list_all", async (db) => {
+      const rows = await db
+        .select()
+        .from(tables.sourcesTable)
+        .orderBy(
+          asc(tables.sourcesTable.workspaceId),
+          asc(tables.sourcesTable.updatedAt),
+          asc(tables.sourcesTable.sourceId),
+        );
+
+      return rows.map((row) => decodeStoredSourceRecord(row));
+    }),
+
   listByWorkspaceId: (workspaceId: StoredSourceRecord["workspaceId"]) =>
     client.use("rows.sources.list_by_workspace", async (db) => {
       const rows = await db
@@ -74,6 +91,26 @@ export const createSourcesRepo = (
       return Option.isSome(row)
         ? Option.some(decodeStoredSourceRecord(row.value))
         : Option.none<StoredSourceRecord>();
+    }),
+
+  countByRecipeId: (recipeId: StoredSourceRecord["recipeId"]) =>
+    client.use("rows.sources.count_by_recipe", async (db) => {
+      const rows = await db
+        .select({ value: count() })
+        .from(tables.sourcesTable)
+        .where(eq(tables.sourcesTable.recipeId, recipeId));
+
+      return Number(rows[0]?.value ?? 0);
+    }),
+
+  countByRecipeRevisionId: (recipeRevisionId: StoredSourceRecord["recipeRevisionId"]) =>
+    client.use("rows.sources.count_by_recipe_revision", async (db) => {
+      const rows = await db
+        .select({ value: count() })
+        .from(tables.sourcesTable)
+        .where(eq(tables.sourcesTable.recipeRevisionId, recipeRevisionId));
+
+      return Number(rows[0]?.value ?? 0);
     }),
 
   insert: (source: StoredSourceRecord) =>

@@ -15,7 +15,11 @@ import {
   createPoliciesRepo,
   createSecretMaterialsRepo,
   createSourceAuthSessionsRepo,
-  createSourceCredentialBindingsRepo,
+  createSourceOauthClientsRepo,
+  createSourceRecipeDocumentsRepo,
+  createSourceRecipeOperationsRepo,
+  createSourceRecipeRevisionsRepo,
+  createSourceRecipesRepo,
   createSourcesRepo,
   createToolArtifactsRepo,
   createWorkspacesRepo,
@@ -29,6 +33,7 @@ import {
   type SqlBackend,
   type SqlRuntime,
 } from "./sql-runtime";
+import { runPostMigrationRepairs } from "./post-migrations";
 
 export { tableNames, type DrizzleTables } from "./schema";
 export {
@@ -52,9 +57,13 @@ const createRows = (client: DrizzleClient, tables: DrizzleTables = drizzleSchema
   organizationMemberships: createOrganizationMembershipsRepo(client, tables),
   workspaces: createWorkspacesRepo(client, tables),
   sources: createSourcesRepo(client, tables),
+  sourceRecipes: createSourceRecipesRepo(client, tables),
+  sourceRecipeRevisions: createSourceRecipeRevisionsRepo(client, tables),
+  sourceRecipeDocuments: createSourceRecipeDocumentsRepo(client, tables),
+  sourceRecipeOperations: createSourceRecipeOperationsRepo(client, tables),
   credentials: createCredentialsRepo(client, tables),
+  sourceOauthClients: createSourceOauthClientsRepo(client, tables),
   toolArtifacts: createToolArtifactsRepo(client, tables),
-  sourceCredentialBindings: createSourceCredentialBindingsRepo(client, tables),
   secretMaterials: createSecretMaterialsRepo(client, tables),
   sourceAuthSessions: createSourceAuthSessionsRepo(client, tables),
   policies: createPoliciesRepo(client, tables),
@@ -127,14 +136,20 @@ export const createSqlControlPlanePersistence = (
           backend: runtime.backend,
           db: runtime.db,
         });
+        const rows = createRows(client);
 
         return {
           backend: runtime.backend,
           db: runtime.db,
-          rows: createRows(client),
+          rows,
           close: () => runtime.close(),
         } satisfies SqlControlPlanePersistence;
       }),
+      Effect.flatMap((persistence) =>
+        runPostMigrationRepairs(persistence.rows).pipe(
+          Effect.mapError(toBootstrapError),
+          Effect.map(() => persistence),
+        )),
       Effect.catchAll((error) =>
         closeRuntimeEffect(runtime).pipe(
           Effect.zipRight(Effect.fail(error)),

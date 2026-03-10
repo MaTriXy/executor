@@ -4,7 +4,7 @@ import {
 } from "#schema";
 import * as Option from "effect/Option";
 import { Schema } from "effect";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 
 import type { DrizzleClient } from "../client";
 import type { DrizzleTables } from "../schema";
@@ -60,29 +60,39 @@ export const createSourceAuthSessionsRepo = (
         : Option.none<SourceAuthSession>();
     }),
 
-  getPendingByWorkspaceAndSourceId: (
-    workspaceId: SourceAuthSession["workspaceId"],
-    sourceId: SourceAuthSession["sourceId"],
-  ) =>
-    client.use("rows.source_auth_sessions.get_pending_by_workspace_and_source_id", async (db) => {
-      const rows = await db
-        .select()
-        .from(tables.sourceAuthSessionsTable)
-        .where(
-          and(
-            eq(tables.sourceAuthSessionsTable.workspaceId, workspaceId),
-            eq(tables.sourceAuthSessionsTable.sourceId, sourceId),
-            eq(tables.sourceAuthSessionsTable.status, "pending"),
-          ),
-        )
-        .orderBy(asc(tables.sourceAuthSessionsTable.updatedAt), asc(tables.sourceAuthSessionsTable.id))
-        .limit(1);
+  getPendingByWorkspaceSourceAndActor: (input: {
+    workspaceId: SourceAuthSession["workspaceId"];
+    sourceId: SourceAuthSession["sourceId"];
+    actorAccountId: SourceAuthSession["actorAccountId"];
+  }) =>
+    client.use(
+      "rows.source_auth_sessions.get_pending_by_workspace_source_actor",
+      async (db) => {
+        const rows = await db
+          .select()
+          .from(tables.sourceAuthSessionsTable)
+          .where(
+            and(
+              eq(tables.sourceAuthSessionsTable.workspaceId, input.workspaceId),
+              eq(tables.sourceAuthSessionsTable.sourceId, input.sourceId),
+              input.actorAccountId === null
+                ? isNull(tables.sourceAuthSessionsTable.actorAccountId)
+                : eq(tables.sourceAuthSessionsTable.actorAccountId, input.actorAccountId),
+              eq(tables.sourceAuthSessionsTable.status, "pending"),
+            ),
+          )
+          .orderBy(
+            asc(tables.sourceAuthSessionsTable.updatedAt),
+            asc(tables.sourceAuthSessionsTable.id),
+          )
+          .limit(1);
 
-      const row = firstOption(rows);
-      return Option.isSome(row)
-        ? Option.some(decodeSourceAuthSession(row.value))
-        : Option.none<SourceAuthSession>();
-    }),
+        const row = firstOption(rows);
+        return Option.isSome(row)
+          ? Option.some(decodeSourceAuthSession(row.value))
+          : Option.none<SourceAuthSession>();
+      },
+    ),
 
   insert: (session: SourceAuthSession) =>
     client.use("rows.source_auth_sessions.insert", async (db) => {
@@ -123,7 +133,7 @@ export const createSourceAuthSessionsRepo = (
     workspaceId: SourceAuthSession["workspaceId"],
     sourceId: SourceAuthSession["sourceId"],
   ) =>
-    client.use("rows.source_auth_sessions.remove_by_workspace_and_source_id", async (db) => {
+    client.use("rows.source_auth_sessions.remove_by_workspace_source", async (db) => {
       const deleted = await db
         .delete(tables.sourceAuthSessionsTable)
         .where(

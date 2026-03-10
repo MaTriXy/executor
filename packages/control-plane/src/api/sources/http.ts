@@ -675,7 +675,7 @@ export const ControlPlaneSourcesLive = HttpApiBuilder.group(
         ),
       )
       .handle("connect", ({ path, payload }) =>
-        withWorkspaceRequestActor("sources.connect", path.workspaceId, () =>
+        withWorkspaceRequestActor("sources.connect", path.workspaceId, (actor) =>
           withPolicy(requireWriteSources(path.workspaceId))(
             Effect.gen(function* () {
               const request = yield* HttpServerRequest.HttpServerRequest;
@@ -685,6 +685,7 @@ export const ControlPlaneSourcesLive = HttpApiBuilder.group(
               if (payload.kind === "mcp") {
                 return yield* sourceAuthService.connectMcpSource({
                   workspaceId: path.workspaceId,
+                  actorAccountId: actor.principal.accountId,
                   endpoint: payload.endpoint,
                   name: payload.name,
                   namespace: payload.namespace,
@@ -699,6 +700,7 @@ export const ControlPlaneSourcesLive = HttpApiBuilder.group(
                 return yield* sourceAuthService.addExecutorSource(
                   {
                     workspaceId: path.workspaceId,
+                    actorAccountId: actor.principal.accountId,
                     executionId: null,
                     interactionId: null,
                     kind: "openapi",
@@ -715,6 +717,7 @@ export const ControlPlaneSourcesLive = HttpApiBuilder.group(
               return yield* sourceAuthService.addExecutorSource(
                 {
                   workspaceId: path.workspaceId,
+                  actorAccountId: actor.principal.accountId,
                   executionId: null,
                   interactionId: null,
                   kind: "graphql",
