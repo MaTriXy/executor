@@ -266,14 +266,11 @@ const replacePathParameters = (input: {
     return encodeURIComponent(values[0]!);
   });
 
+// `source.endpoint` stores the discovery document URL, not the runtime API
+// root. Always derive invocation targets from the discovery document metadata.
 const resolveGoogleDiscoveryBaseUrl = (input: {
   providerData: GoogleDiscoveryToolProviderData;
-  baseUrl?: string;
 }): string => {
-  if (input.baseUrl) {
-    return new URL(input.baseUrl).toString();
-  }
-
   return new URL(
     input.providerData.invocation.servicePath || "",
     input.providerData.invocation.rootUrl,
@@ -618,7 +615,6 @@ export const googleDiscoverySourceAdapter = {
           resolvedPath.replace(/^\//, ""),
           resolveGoogleDiscoveryBaseUrl({
             providerData,
-            baseUrl: input.source.endpoint,
           }),
         );
         const headers: Record<string, string> = {
