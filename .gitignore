@@ -71,6 +71,7 @@ convex_local_storage/
 sources/data/*.sqlite
 sources/data/*.sqlite-shm
 sources/data/*.sqlite-wal
+packages/platform/server/:memory:/
 
 # Composio toolkit scrape outputs
 sources/composio-scrape/data/
