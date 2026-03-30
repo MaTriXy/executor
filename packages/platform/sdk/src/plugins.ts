@@ -305,6 +305,7 @@ export type ExecutorSourcePluginDefinition<
     toConfigSource: (input: {
       source: ExecutorSource;
       stored: TStored;
+      configInput: TConnectInput | TSourceConfig | null;
     }) => ExecutorScopeConfigSource;
     recoverStored: (input: {
       source: ExecutorSource;
@@ -609,6 +610,7 @@ const persistSourceScopeConfig = <
   input: {
     source: ExecutorSource;
     stored: TStored;
+    configInput: TConnectInput | TSourceConfig | null;
   },
 ): Effect.Effect<void, Error, ScopeConfigStore> =>
   definition.scopeConfig
@@ -622,6 +624,7 @@ const persistSourceScopeConfig = <
           [input.source.id]: scopeConfig.toConfigSource({
             source: input.source,
             stored: input.stored,
+            configInput: input.configInput,
           }),
         };
 
@@ -756,6 +759,7 @@ const createExecutorSourcePluginApi = <
       yield* persistSourceScopeConfig(definition, {
         source,
         stored: created.stored,
+        configInput: input,
       });
 
       return yield* host.sources.refreshCatalog(source.id);
@@ -780,6 +784,7 @@ const createExecutorSourcePluginApi = <
       yield* persistSourceScopeConfig(definition, {
         source: saved,
         stored: updated.stored,
+        configInput: input.config,
       });
 
       return yield* host.sources.refreshCatalog(saved.id);
