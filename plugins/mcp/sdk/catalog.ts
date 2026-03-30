@@ -99,13 +99,15 @@ const createMcpCapability = (input: {
       protocol: "mcp",
     })}`,
   );
+  // MCP tools frequently omit outputSchema even when they return data.
+  // Treat that as unknown rather than as an explicit null response.
   const outputShapeId =
-    input.operation.outputSchema !== undefined
-      ? input.importer.importSchema(
-          input.operation.outputSchema,
-          `#/mcp/${input.operation.providerData.toolId}/output`,
-        )
-      : undefined;
+    input.importer.importSchema(
+      input.operation.outputSchema === undefined
+        ? true
+        : input.operation.outputSchema,
+      `#/mcp/${input.operation.providerData.toolId}/output`,
+    );
   const callShapeId =
     input.operation.inputSchema === undefined
       ? input.importer.importSchema(
