@@ -3,7 +3,6 @@ import * as Option from "effect/Option";
 
 import {
   SecretMaterialIdSchema,
-  type SecretStore,
 } from "../schema";
 import {
   type CreateSecretPayload,

@@ -9,7 +9,6 @@ import {
   type DeleteSecretStoreResult,
   type ImportSecretFromStorePayload,
   type SecretStoreCapabilities,
-  type SecretStore as SecretStoreContract,
   type UpdateSecretStorePayload,
 } from "./contracts";
 import {

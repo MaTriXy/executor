@@ -53,9 +53,6 @@ const ReadableLocalSourceArtifactSchema = Schema.Struct({
   snapshot: Schema.Unknown,
 });
 
-type ReadableLocalSourceArtifact =
-  typeof ReadableLocalSourceArtifactSchema.Type;
-
 const decodeReadableLocalSourceArtifactOption = Schema.decodeUnknownOption(
   Schema.parseJson(
     ReadableLocalSourceArtifactSchema,

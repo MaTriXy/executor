@@ -3,8 +3,6 @@ import {
   HttpApiBuilder,
 } from "@effect/platform";
 import {
-  ControlPlaneBadRequestError,
-  ControlPlaneForbiddenError,
   ControlPlaneStorageError,
   type ExecutorHttpPlugin,
 } from "@executor/platform-api";

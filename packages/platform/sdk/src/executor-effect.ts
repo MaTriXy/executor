@@ -13,7 +13,6 @@ import type {
 } from "./executions/contracts";
 import type {
   BrowseSecretStorePayload,
-  BrowseSecretStoreResult,
   CreateSecretPayload,
   CreateSecretStorePayload,
   CreateSecretResult,

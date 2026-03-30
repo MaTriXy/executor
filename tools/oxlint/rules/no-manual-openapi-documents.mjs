@@ -6,6 +6,8 @@ const MANUAL_OPENAPI_RULE_ALLOWED_PATH_SEGMENTS = [
   `${path.sep}packages${path.sep}platform${path.sep}sdk${path.sep}src${path.sep}runtime${path.sep}sources${path.sep}source-adapter-fixture-matrix.test.ts`,
   `${path.sep}packages${path.sep}platform${path.sep}sdk${path.sep}src${path.sep}runtime${path.sep}sources${path.sep}source-discovery.test.ts`,
   `${path.sep}packages${path.sep}platform${path.sep}sdk${path.sep}src${path.sep}runtime${path.sep}sources${path.sep}executor-tools.test.ts`,
+  `${path.sep}packages${path.sep}platform${path.sep}sdk${path.sep}src${path.sep}runtime${path.sep}sources${path.sep}openapi-type-contract.test.ts`,
+  `${path.sep}plugins${path.sep}openapi${path.sep}sdk${path.sep}document.test.ts`,
 ];
 
 const OPENAPI_MARKER_KEYS = new Set(["openapi", "swagger"]);

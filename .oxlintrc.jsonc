@@ -59,7 +59,9 @@
       // package-graph cycles from test-only dependencies.
       "files": [
         "packages/platform/sdk/src/executor.test.ts",
-        "packages/platform/sdk/src/runtime/executor-runtime.test.ts"
+        "packages/platform/sdk/src/runtime/executor-runtime.test.ts",
+        "packages/platform/server/src/index.test.ts",
+        "packages/clients/react/src/index.test.tsx"
       ],
       "rules": {
         "executor-monorepo/no-cross-workspace-relative-imports": "off"

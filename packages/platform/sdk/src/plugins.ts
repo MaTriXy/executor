@@ -13,7 +13,6 @@ import {
   type Source as ExecutorSource,
   type SecretMaterial,
   type SecretMaterialPurpose,
-  type SecretRef,
   type SecretStore,
 } from "./schema";
 import type {

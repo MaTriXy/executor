@@ -535,42 +535,6 @@ const startServerInBackground = (port: number) =>
     }),
   );
 
-type LocalServerPidRecord = {
-  pid?: number;
-  port?: number;
-  host?: string;
-  baseUrl?: string;
-  startedAt?: number;
-  logFile?: string;
-};
-
-const readPidRecord = (): Effect.Effect<
-  LocalServerPidRecord | null,
-  never,
-  FileSystem.FileSystem
-> =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const contents = yield* fs.readFileString(DEFAULT_SERVER_PID_FILE, "utf8").pipe(
-      Effect.catchAll(() => Effect.succeed<string | null>(null)),
-    );
-    if (contents === null) {
-      return null;
-    }
-
-    return JSON.parse(contents) as LocalServerPidRecord;
-  }).pipe(Effect.catchAll(() => Effect.succeed(null)));
-
-const isPidRunning = (pid: number): boolean => {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error instanceof Error && "code" in error && error.code === "EPERM";
-  }
-};
-
-
 const readServerLogTail = (
   logFile: string = DEFAULT_SERVER_LOG_FILE,
   maxLines: number = 40,

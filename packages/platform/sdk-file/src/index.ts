@@ -12,7 +12,6 @@ import {
 } from "@executor/platform-sdk";
 import {
   createExecutorEffect,
-  type CreateExecutorEffectOptions,
   type ExecutorEffect,
 } from "@executor/platform-sdk/effect";
 import type {
@@ -247,7 +246,6 @@ export const createLocalExecutorRepositoriesEffect = (
       workspaceContext,
       fileSystem,
     );
-    const loadedConfig = yield* workspaceConfigStore.load();
     const pluginRegistry = runtimeOptions.pluginRegistry ?? emptyExecutorPluginRegistry();
     yield* provisionBuiltinSecretStores({
       executorState: executorStateStorage.executorState,
