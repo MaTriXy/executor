@@ -74,6 +74,9 @@ import {
   loadRuntimeLocalScopePolicies,
 } from "../../../policies/operations";
 import {
+  RuntimeLocalScopeService,
+} from "../../scope/runtime-context";
+import {
   provideRuntimeLocalScope,
 } from "./local";
 import {
@@ -177,9 +180,19 @@ export const createScopeToolInvoker = (input: {
       return catalog;
     },
     filterDiscoverResults: async (results: readonly DiscoverResultItem[]) => {
+      if (!input.runtimeLocalScope) {
+        return results;
+      }
+
       const { policies } = await Effect.runPromise(
         loadRuntimeLocalScopePolicies(input.scopeId).pipe(
           Effect.provide(persistedToolRuntimeLayer),
+          Effect.provide(
+            Layer.succeed(
+              RuntimeLocalScopeService,
+              input.runtimeLocalScope,
+            ),
+          ),
         ),
       );
 
