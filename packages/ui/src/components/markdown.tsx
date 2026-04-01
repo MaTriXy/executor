@@ -1,7 +1,7 @@
 import { Streamdown } from "streamdown";
-import { createLimitedCodePlugin } from "../lib/shiki";
+import { createCodeHighlighterPlugin } from "../lib/shiki";
 
-const codePlugin = createLimitedCodePlugin();
+const codePlugin = createCodeHighlighterPlugin();
 
 const PROSE_CLASSES = [
   "text-[13px] leading-relaxed text-muted-foreground",

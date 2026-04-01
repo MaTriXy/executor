@@ -1,52 +1,14 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAtomValue, toolSchemaAtom, Result, ScopeId, ToolId } from "@executor/react";
-import { Markdown } from "./markdown";
-
-// ---------------------------------------------------------------------------
-// Schema panel
-// ---------------------------------------------------------------------------
-
-function SchemaPanel(props: { title: string; schema: unknown }) {
-  const [expanded, setExpanded] = useState(false);
-  const json = JSON.stringify(props.schema, null, 2);
-  const lines = json.split("\n");
-  const isLong = lines.length > 20;
-
-  return (
-    <div className="rounded-lg border border-border bg-card/60 overflow-hidden">
-      <div className="border-b border-border px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/70">
-        {props.title}
-      </div>
-      <div className="relative">
-        <pre
-          className={[
-            "overflow-x-auto p-3 text-xs font-mono text-foreground/80 leading-relaxed",
-            !expanded && isLong ? "max-h-[20rem] overflow-hidden" : "",
-          ].join(" ")}
-        >
-          {json}
-        </pre>
-        {isLong && !expanded && (
-          <div className="absolute bottom-0 left-0 right-0 flex justify-center bg-gradient-to-t from-card/90 to-transparent pb-2 pt-8">
-            <button
-              type="button"
-              onClick={() => setExpanded(true)}
-              className="rounded-md border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Show all ({lines.length} lines)
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+import { CodeBlock } from "@executor/ui/components/code-block";
+import { Markdown } from "@executor/ui/components/markdown";
+import { schemaToTypeDeclaration } from "../lib/schema-type-signature";
 
 // ---------------------------------------------------------------------------
 // Copy button
 // ---------------------------------------------------------------------------
 
-function CopyButton(props: { text: string }) {
+function CopyButton(props: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 
   return (
@@ -59,7 +21,7 @@ function CopyButton(props: { text: string }) {
         });
       }}
       className="size-6 shrink-0 flex items-center justify-center text-muted-foreground/30 hover:text-muted-foreground transition-colors"
-      title="Copy tool ID"
+      title={props.label ?? "Copy"}
     >
       {copied ? (
         <svg viewBox="0 0 16 16" className="size-3.5">
@@ -76,6 +38,26 @@ function CopyButton(props: { text: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Build type declarations from schemas
+// ---------------------------------------------------------------------------
+
+const buildCallSignature = (
+  toolName: string,
+  inputSchema: unknown,
+  outputSchema: unknown,
+): string => {
+  const inputType = inputSchema
+    ? schemaToTypeDeclaration(inputSchema)
+    : "void";
+  const outputType = outputSchema
+    ? schemaToTypeDeclaration(outputSchema)
+    : "void";
+
+  const leaf = toolName.split(".").pop() ?? toolName;
+  return `declare function ${leaf}(input: ${inputType}): ${outputType}`;
+};
+
+// ---------------------------------------------------------------------------
 // ToolDetail
 // ---------------------------------------------------------------------------
 
@@ -88,6 +70,18 @@ export function ToolDetail(props: {
   const schema = useAtomValue(
     toolSchemaAtom(props.scopeId, props.toolId as ToolId),
   );
+
+  const types = useMemo(() => {
+    if (!Result.isSuccess(schema)) return null;
+    const v = schema.value;
+    return {
+      input: v.inputSchema ? schemaToTypeDeclaration(v.inputSchema, "Input") : null,
+      output: v.outputSchema ? schemaToTypeDeclaration(v.outputSchema, "Output") : null,
+      callSignature: buildCallSignature(props.toolName, v.inputSchema, v.outputSchema),
+      inputJson: v.inputSchema ? JSON.stringify(v.inputSchema, null, 2) : null,
+      outputJson: v.outputSchema ? JSON.stringify(v.outputSchema, null, 2) : null,
+    };
+  }, [schema, props.toolName]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -109,7 +103,7 @@ export function ToolDetail(props: {
               <h3 className="truncate text-sm font-semibold text-foreground font-mono">
                 {props.toolName}
               </h3>
-              <CopyButton text={props.toolId} />
+              <CopyButton text={props.toolId} label="Copy tool ID" />
             </div>
             {props.toolDescription && (
               <div className="mt-1">
@@ -120,7 +114,7 @@ export function ToolDetail(props: {
         </div>
       </div>
 
-      {/* Schema content */}
+      {/* Content */}
       <div className="flex-1 overflow-y-auto">
         {Result.match(schema, {
           onInitial: () => (
@@ -129,18 +123,46 @@ export function ToolDetail(props: {
           onFailure: () => (
             <div className="p-5 text-sm text-destructive">Failed to load schema</div>
           ),
-          onSuccess: ({ value }) => (
+          onSuccess: () => (
             <div className="space-y-4 px-5 py-4">
+              {/* Call signature */}
+              {types?.callSignature && (
+                <CodeBlock
+                  title="Call Signature"
+                  code={types.callSignature}
+                  lang="typescript"
+                />
+              )}
+
+              {/* Type declarations */}
               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                {value.inputSchema ? (
-                  <SchemaPanel title="Input Schema" schema={value.inputSchema} />
+                {types?.input ? (
+                  <CodeBlock title="Input" code={types.input} lang="typescript" />
+                ) : (
+                  <div className="rounded-lg border border-border bg-card/60 px-3 py-6 text-center text-[13px] text-muted-foreground/40">
+                    No input
+                  </div>
+                )}
+                {types?.output ? (
+                  <CodeBlock title="Output" code={types.output} lang="typescript" />
+                ) : (
+                  <div className="rounded-lg border border-border bg-card/60 px-3 py-6 text-center text-[13px] text-muted-foreground/40">
+                    No output
+                  </div>
+                )}
+              </div>
+
+              {/* JSON Schemas */}
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                {types?.inputJson ? (
+                  <CodeBlock title="Input Schema" code={types.inputJson} />
                 ) : (
                   <div className="rounded-lg border border-border bg-card/60 px-3 py-6 text-center text-[13px] text-muted-foreground/40">
                     No input schema
                   </div>
                 )}
-                {value.outputSchema ? (
-                  <SchemaPanel title="Output Schema" schema={value.outputSchema} />
+                {types?.outputJson ? (
+                  <CodeBlock title="Output Schema" code={types.outputJson} />
                 ) : (
                   <div className="rounded-lg border border-border bg-card/60 px-3 py-6 text-center text-[13px] text-muted-foreground/40">
                     No output schema
@@ -168,7 +190,11 @@ export function ToolDetailEmpty(props: { hasTools: boolean }) {
         </p>
         {props.hasTools && (
           <p className="mt-1 text-xs text-muted-foreground">
-            Choose from the list or press <kbd className="rounded border border-border bg-muted px-1 py-px text-[10px]">/</kbd> to search.
+            Choose from the list or press{" "}
+            <kbd className="rounded border border-border bg-muted px-1 py-px text-[10px]">
+              /
+            </kbd>{" "}
+            to search.
           </p>
         )}
       </div>

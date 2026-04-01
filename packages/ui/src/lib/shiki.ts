@@ -4,7 +4,6 @@ import {
   type LanguageInput,
 } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
-import type { CodeHighlighterPlugin, ThemeInput } from "streamdown";
 
 // ---------------------------------------------------------------------------
 // Supported languages — explicit imports to avoid bundling all grammars
@@ -104,6 +103,8 @@ const supportedSet = new Set<string>([
   ...Object.keys(LANG_ALIASES),
 ]);
 
+export const THEME = "vitesse-dark";
+
 export function resolveLang(lang: string): SupportedLang | null {
   const l = lang.trim().toLowerCase();
   if (l in LANG_LOADERS) return l as SupportedLang;
@@ -116,47 +117,39 @@ export function isSupportedLang(lang: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Singleton highlighter
+// Shared singleton highlighter — lazy, created on first use
 // ---------------------------------------------------------------------------
 
 const jsEngine = createJavaScriptRegexEngine({ forgiving: true });
 
-let _highlighter: HighlighterCore | null = null;
-let _highlighterPromise: Promise<HighlighterCore> | null = null;
+let _promise: Promise<HighlighterCore> | null = null;
 
-async function getHighlighter(): Promise<HighlighterCore> {
-  if (_highlighter) return _highlighter;
-  if (_highlighterPromise) return _highlighterPromise;
-
-  _highlighterPromise = createHighlighterCore({
-    themes: [import("@shikijs/themes/vitesse-dark")],
-    langs: Object.values(LANG_LOADERS).map((loader) => loader()),
-    engine: jsEngine,
-  }).then((h) => {
-    _highlighter = h;
-    return h;
-  });
-
-  return _highlighterPromise;
+export function getHighlighter(): Promise<HighlighterCore> {
+  if (!_promise) {
+    _promise = createHighlighterCore({
+      themes: [import("@shikijs/themes/vitesse-dark")],
+      langs: Object.values(LANG_LOADERS).map((loader) => loader()),
+      engine: jsEngine,
+    });
+  }
+  return _promise;
 }
-
-// Eagerly start loading
-void getHighlighter();
 
 // ---------------------------------------------------------------------------
 // Streamdown code highlighter plugin
 // ---------------------------------------------------------------------------
 
-const THEME = "vitesse-dark" as ThemeInput;
+import type { CodeHighlighterPlugin, ThemeInput } from "streamdown";
+
 const tokensCache = new Map<string, unknown>();
 const pendingCallbacks = new Map<string, Set<(result: unknown) => void>>();
 
-export function createLimitedCodePlugin(): CodeHighlighterPlugin {
+export function createCodeHighlighterPlugin(): CodeHighlighterPlugin {
   return {
     name: "shiki" as const,
     type: "code-highlighter" as const,
     getSupportedLanguages: () => [...SUPPORTED_LANGS] as string[] as never,
-    getThemes: () => [THEME, THEME],
+    getThemes: () => [THEME as ThemeInput, THEME as ThemeInput],
     supportsLanguage: (language: string) => isSupportedLang(language),
     highlight(options, callback) {
       const resolved = resolveLang(options.language);
@@ -182,7 +175,7 @@ export function createLimitedCodePlugin(): CodeHighlighterPlugin {
         }
         const result = highlighter.codeToTokens(options.code, {
           lang,
-          themes: { light: "vitesse-dark", dark: "vitesse-dark" },
+          themes: { light: THEME, dark: THEME },
         });
         tokensCache.set(key, result);
         pendingCallbacks.get(key)?.forEach((cb) => cb(result));

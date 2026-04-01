@@ -13,6 +13,7 @@ import {
 
 import { parse } from "./parse";
 import { extract } from "./extract";
+import { compileToolDefinitions, type ToolDefinition } from "./definitions";
 import { makeOpenApiInvoker } from "./invoke";
 import { resolveBaseUrl } from "./openapi-utils";
 import {
@@ -21,7 +22,6 @@ import {
 } from "./operation-store";
 import { previewSpec, type SpecPreview } from "./preview";
 import {
-  type ExtractedOperation,
   InvocationConfig,
   OperationBinding,
 } from "./types";
@@ -64,32 +64,33 @@ export interface OpenApiPluginExtension {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const operationDescription = (op: ExtractedOperation): string =>
-  Option.getOrElse(op.description, () =>
+const toRegistration = (
+  def: ToolDefinition,
+  namespace: string,
+): ToolRegistration => {
+  const op = def.operation;
+  const description = Option.getOrElse(op.description, () =>
     Option.getOrElse(op.summary, () =>
       `${op.method.toUpperCase()} ${op.pathTemplate}`,
     ),
   );
+  return {
+    id: ToolId.make(`${namespace}.${def.toolPath}`),
+    pluginKey: "openapi",
+    sourceId: namespace,
+    name: def.toolPath,
+    description,
+    inputSchema: Option.getOrUndefined(op.inputSchema),
+    outputSchema: Option.getOrUndefined(op.outputSchema),
+  };
+};
 
-const toRegistration = (
-  op: ExtractedOperation,
-  namespace: string,
-): ToolRegistration => ({
-  id: ToolId.make(`${namespace}.${op.operationId}`),
-  pluginKey: "openapi",
-  sourceId: namespace,
-  name: op.operationId as string,
-  description: operationDescription(op),
-  inputSchema: Option.getOrUndefined(op.inputSchema),
-  outputSchema: Option.getOrUndefined(op.outputSchema),
-});
-
-const toBinding = (op: ExtractedOperation): OperationBinding =>
+const toBinding = (def: ToolDefinition): OperationBinding =>
   new OperationBinding({
-    method: op.method,
-    pathTemplate: op.pathTemplate,
-    parameters: [...op.parameters],
-    requestBody: op.requestBody,
+    method: def.operation.method,
+    pathTemplate: def.operation.pathTemplate,
+    parameters: [...def.operation.parameters],
+    requestBody: def.operation.requestBody,
   });
 
 // ---------------------------------------------------------------------------
@@ -165,17 +166,19 @@ export const openApiPlugin = (options?: {
                   headers: config.headers ?? {},
                 });
 
-                const registrations = result.operations.map((op) =>
-                  toRegistration(op, namespace),
+                const definitions = compileToolDefinitions(result.operations);
+
+                const registrations = definitions.map((def) =>
+                  toRegistration(def, namespace),
                 );
 
                 yield* Effect.forEach(
-                  result.operations,
-                  (op) =>
+                  definitions,
+                  (def) =>
                     operationStore.put(
-                      ToolId.make(`${namespace}.${op.operationId}`),
+                      ToolId.make(`${namespace}.${def.toolPath}`),
                       namespace,
-                      toBinding(op),
+                      toBinding(def),
                       invocationConfig,
                     ),
                   { discard: true },

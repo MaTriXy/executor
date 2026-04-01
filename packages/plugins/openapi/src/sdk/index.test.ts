@@ -9,6 +9,7 @@ import { Effect, Option, Schema } from "effect";
 
 import { parse } from "./parse";
 import { extract } from "./extract";
+import { compileToolDefinitions } from "./definitions";
 
 // ---------------------------------------------------------------------------
 // Define a test API using Effect's HttpApi
@@ -152,6 +153,29 @@ describe("OpenAPI plugin", () => {
       expect(paths).toContain("get /pets");
       expect(paths).toContain("post /pets");
       expect(paths).toContain("get /pets/{petId}");
+    }),
+  );
+
+  it.effect("compileToolDefinitions produces nested group.leaf paths", () =>
+    Effect.gen(function* () {
+      const doc = yield* parse(JSON.stringify(spec));
+      const result = yield* extract(doc);
+      const defs = compileToolDefinitions(result.operations);
+
+      // All 3 operations compiled
+      expect(defs).toHaveLength(3);
+
+      // All should be under the "pets" group
+      for (const def of defs) {
+        expect(def.group).toBe("pets");
+        expect(def.toolPath).toMatch(/^pets\./);
+      }
+
+      // Specific tool paths
+      const paths = defs.map((d) => d.toolPath);
+      expect(paths).toContain("pets.listPets");
+      expect(paths).toContain("pets.createPet");
+      expect(paths).toContain("pets.getPet");
     }),
   );
 });

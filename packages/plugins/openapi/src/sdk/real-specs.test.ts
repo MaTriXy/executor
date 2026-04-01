@@ -143,7 +143,7 @@ describe("Real specs: Cloudflare API", () => {
         expect(Object.keys(definitions).length).toBeGreaterThan(5000);
         expect(definitions["dns-records_dns_response_single"]).toBeDefined();
 
-        const tools = yield* executor.tools.list({ query: "dns-record-details" });
+        const tools = yield* executor.tools.list({ query: "dns" });
         expect(tools.length).toBeGreaterThan(0);
 
         const schema = yield* executor.tools.schema(tools[0]!.id);
