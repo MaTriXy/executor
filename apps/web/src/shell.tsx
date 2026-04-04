@@ -309,16 +309,24 @@ function SidebarContent(props: {
 
       {/* Footer */}
       <div className="shrink-0 border-t border-sidebar-border px-4 py-2.5">
-        <div className="flex items-center justify-between text-[10px] leading-none">
-          <span className="text-muted-foreground/70 tabular-nums">v{VITE_APP_VERSION}</span>
+        <div className="flex flex-col gap-1.5 text-[11px] leading-none">
+          <a
+            href={`${VITE_GITHUB_URL}/issues`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-muted-foreground/70 transition-colors hover:text-foreground"
+          >
+            Feedback / bug?
+          </a>
           <a
             href={VITE_GITHUB_URL}
             target="_blank"
             rel="noreferrer"
             className="text-muted-foreground/70 transition-colors hover:text-foreground"
           >
-            GitHub
+            Star on GitHub
           </a>
+          <span className="mt-0.5 text-[10px] text-muted-foreground/50 tabular-nums">v{VITE_APP_VERSION}</span>
         </div>
       </div>
     </>
