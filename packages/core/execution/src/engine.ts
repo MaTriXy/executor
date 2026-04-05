@@ -1,5 +1,4 @@
 import { Effect } from "effect";
-import * as Data from "effect/Data";
 
 import type {
   Executor,
@@ -11,7 +10,13 @@ import type {
 import type { CodeExecutor, ExecuteResult, SandboxToolInvoker } from "@executor/codemode-core";
 import { makeQuickJsExecutor } from "@executor/runtime-quickjs";
 
-import { makeExecutorToolInvoker, discoverTools, describeTool } from "./tool-invoker";
+import {
+  makeExecutorToolInvoker,
+  searchTools,
+  listExecutorSources,
+  describeTool,
+} from "./tool-invoker";
+import { ExecutionToolError } from "./errors";
 import { buildExecuteDescription } from "./description";
 
 // ---------------------------------------------------------------------------
@@ -124,11 +129,25 @@ export const formatPausedExecution = (paused: PausedExecution): {
 // Full invoker (base + discover + describe)
 // ---------------------------------------------------------------------------
 
-class DescribeToolPathRequiredError extends Data.TaggedError(
-  "DescribeToolPathRequiredError",
-)<{
-  readonly message: string;
-}> {}
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const readOptionalLimit = (
+  value: unknown,
+  toolName: string,
+): number | ExecutionToolError => {
+  if (value === undefined) {
+    return 12;
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return new ExecutionToolError({
+      message: `${toolName} limit must be a positive number when provided`,
+    });
+  }
+
+  return Math.floor(value);
+};
 
 const makeFullInvoker = (
   executor: Executor,
@@ -137,20 +156,89 @@ const makeFullInvoker = (
   const base = makeExecutorToolInvoker(executor, { invokeOptions });
   return {
     invoke: ({ path, args }) => {
-      if (path === "discover") {
-        const input = (args ?? {}) as { query?: string; limit?: number };
-        return discoverTools(executor, input.query ?? "", input.limit);
-      }
-      if (path === "describe.tool") {
-        const input = (args ?? {}) as { path?: string };
-        if (!input.path) {
+      if (path === "search") {
+        if (!isRecord(args)) {
           return Effect.fail(
-            new DescribeToolPathRequiredError({
-              message: "describe.tool requires a path",
+            new ExecutionToolError({
+              message: "tools.search expects an object: { query?: string; namespace?: string; limit?: number }",
             }),
           );
         }
-        return describeTool(executor, input.path);
+
+        if (args.query !== undefined && typeof args.query !== "string") {
+          return Effect.fail(
+            new ExecutionToolError({
+              message: "tools.search query must be a string when provided",
+            }),
+          );
+        }
+
+        if (args.namespace !== undefined && typeof args.namespace !== "string") {
+          return Effect.fail(
+            new ExecutionToolError({
+              message: "tools.search namespace must be a string when provided",
+            }),
+          );
+        }
+
+        const limit = readOptionalLimit(args.limit, "tools.search");
+        if (limit instanceof ExecutionToolError) {
+          return Effect.fail(limit);
+        }
+
+        return searchTools(executor, args.query ?? "", limit, {
+          namespace: args.namespace,
+        });
+      }
+      if (path === "executor.sources.list") {
+        if (args !== undefined && !isRecord(args)) {
+          return Effect.fail(
+            new ExecutionToolError({
+              message: "tools.executor.sources.list expects an object: { query?: string; limit?: number }",
+            }),
+          );
+        }
+
+        if (isRecord(args) && args.query !== undefined && typeof args.query !== "string") {
+          return Effect.fail(
+            new ExecutionToolError({
+              message: "tools.executor.sources.list query must be a string when provided",
+            }),
+          );
+        }
+
+        const limit = readOptionalLimit(isRecord(args) ? args.limit : undefined, "tools.executor.sources.list");
+        if (limit instanceof ExecutionToolError) {
+          return Effect.fail(limit);
+        }
+
+        return listExecutorSources(executor, {
+          query: isRecord(args) && typeof args.query === "string" ? args.query : undefined,
+          limit,
+        });
+      }
+      if (path === "describe.tool") {
+        if (!isRecord(args)) {
+          return Effect.fail(
+            new ExecutionToolError({
+              message: "tools.describe.tool expects an object: { path: string }",
+            }),
+          );
+        }
+
+        if (typeof args.path !== "string" || args.path.trim().length === 0) {
+          return Effect.fail(new ExecutionToolError({ message: "describe.tool requires a path" }));
+        }
+
+        if ("includeSchemas" in args) {
+          return Effect.fail(
+            new ExecutionToolError({
+              message: "tools.describe.tool no longer accepts includeSchemas",
+            }),
+          );
+        }
+
+        return describeTool(executor, args.path);
       }
       return base.invoke({ path, args });
     },
