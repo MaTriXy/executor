@@ -4,7 +4,7 @@ import { useAtomSet, useAtomValue, useAtomRefresh, Result } from "@effect-atom/a
 import {
   secretsAtom,
   setSecret,
-  ScopeId,
+  useScope,
   SecretPicker,
   type SecretPickerSecret,
 } from "@executor/react";
@@ -31,8 +31,9 @@ function InlineCreateSecret(props: {
   const [secretValue, setSecretValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scopeId = useScope();
   const doSet = useAtomSet(setSecret, { mode: "promise" });
-  const refreshSecrets = useAtomRefresh(secretsAtom());
+  const refreshSecrets = useAtomRefresh(secretsAtom(scopeId));
 
   const handleSave = async () => {
     if (!secretId.trim() || !secretValue.trim()) return;
@@ -40,7 +41,7 @@ function InlineCreateSecret(props: {
     setError(null);
     try {
       await doSet({
-        path: { scopeId: ScopeId.make("default") },
+        path: { scopeId },
         payload: {
           id: SecretId.make(secretId.trim()),
           name: secretName.trim() || secretId.trim(),
@@ -165,8 +166,9 @@ export default function AddGraphqlSource(props: {
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
+  const scopeId = useScope();
   const doAdd = useAtomSet(addGraphqlSource, { mode: "promise" });
-  const secrets = useAtomValue(secretsAtom());
+  const secrets = useAtomValue(secretsAtom(scopeId));
 
   const secretList: readonly SecretPickerSecret[] = Result.match(secrets, {
     onInitial: () => [] as SecretPickerSecret[],
@@ -191,7 +193,7 @@ export default function AddGraphqlSource(props: {
       }
 
       await doAdd({
-        path: { scopeId: "default" as never },
+        path: { scopeId },
         payload: {
           endpoint: endpoint.trim(),
           namespace: namespace.trim() || undefined,

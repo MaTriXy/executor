@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   useAtomValue,
@@ -10,23 +10,30 @@ import {
   removeSource,
   refreshSource,
   Result,
-  ScopeId,
 } from "@executor/react";
 import { ToolTree } from "../components/tool-tree";
 import { ToolDetail, ToolDetailEmpty } from "../components/tool-detail";
 import type { ToolSummary } from "../components/tool-tree";
-
-const DEFAULT_SCOPE = ScopeId.make("default");
+import { useScope } from "../lib/use-scope";
 
 export function SourceDetailPage(props: { namespace: string }) {
   const { namespace } = props;
-  const source = useAtomValue(sourceAtom(namespace));
-  const tools = useAtomValue(sourceToolsAtom(namespace));
-  const refreshSources = useAtomRefresh(sourcesAtom());
-  const refreshTools = useAtomRefresh(sourceToolsAtom(namespace));
+  const scopeId = useScope();
+  const source = useAtomValue(sourceAtom(namespace, scopeId));
+  const tools = useAtomValue(sourceToolsAtom(namespace, scopeId));
+  const refreshSources = useAtomRefresh(sourcesAtom(scopeId));
+  const refreshTools = useAtomRefresh(sourceToolsAtom(namespace, scopeId));
   const doRemove = useAtomSet(removeSource, { mode: "promise" });
   const doRefresh = useAtomSet(refreshSource, { mode: "promise" });
   const navigate = useNavigate();
+
+  // HMR: refresh source tools when the backend is hot-reloaded
+  useEffect(() => {
+    if (!import.meta.hot) return;
+    const refresh = () => { refreshTools(); refreshSources(); };
+    import.meta.hot.on("executor:backend-updated", refresh);
+    return () => { import.meta.hot?.off("executor:backend-updated", refresh); };
+  }, [refreshTools, refreshSources]);
 
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -56,7 +63,7 @@ export function SourceDetailPage(props: { namespace: string }) {
     setDeleting(true);
     try {
       await doRemove({
-        path: { scopeId: DEFAULT_SCOPE, sourceId: namespace },
+        path: { scopeId, sourceId: namespace },
       });
       refreshSources();
       void navigate({ to: "/" });
@@ -70,7 +77,7 @@ export function SourceDetailPage(props: { namespace: string }) {
     setRefreshing(true);
     try {
       await doRefresh({
-        path: { scopeId: DEFAULT_SCOPE, sourceId: namespace },
+        path: { scopeId, sourceId: namespace },
       });
       refreshTools();
       refreshSources();
@@ -174,7 +181,7 @@ export function SourceDetailPage(props: { namespace: string }) {
                   toolId={selectedTool.id}
                   toolName={selectedTool.name}
                   toolDescription={selectedTool.description}
-                  scopeId={DEFAULT_SCOPE}
+                  scopeId={scopeId}
                 />
               ) : (
                 <ToolDetailEmpty hasTools={sourceTools.length > 0} />

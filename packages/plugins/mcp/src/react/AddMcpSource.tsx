@@ -1,7 +1,7 @@
 import { useReducer, useCallback, useEffect, useRef } from "react";
 import { useAtomSet } from "@effect-atom/atom-react";
 
-import { ScopeId } from "@executor/react";
+import { useScope } from "@executor/react";
 import { Button } from "@executor/ui/components/button";
 import { Input } from "@executor/ui/components/input";
 import { Label } from "@executor/ui/components/label";
@@ -171,6 +171,7 @@ export default function AddMcpSource(props: {
     props.initialUrl ? { step: "url" as const, url: props.initialUrl } : init,
   );
 
+  const scopeId = useScope();
   const doProbe = useAtomSet(probeMcpEndpoint, { mode: "promise" });
   const doAdd = useAtomSet(addMcpSource, { mode: "promise" });
   const doStartOAuth = useAtomSet(startMcpOAuth, { mode: "promise" });
@@ -191,14 +192,14 @@ export default function AddMcpSource(props: {
     dispatch({ type: "probe-start" });
     try {
       const result = await doProbe({
-        path: { scopeId: ScopeId.make("default") },
+        path: { scopeId },
         payload: { endpoint: state.url.trim() },
       });
       dispatch({ type: "probe-ok", probe: result });
     } catch (e) {
       dispatch({ type: "probe-fail", error: e instanceof Error ? e.message : "Failed to connect" });
     }
-  }, [state.url, doProbe]);
+  }, [state.url, scopeId, doProbe]);
 
   const autoProbed = useRef(false);
   useEffect(() => {
@@ -213,7 +214,7 @@ export default function AddMcpSource(props: {
     try {
       const redirectUrl = `${window.location.origin}/v1/mcp/oauth/callback`;
       const result = await doStartOAuth({
-        path: { scopeId: ScopeId.make("default") },
+        path: { scopeId },
         payload: { endpoint: state.url.trim(), redirectUrl },
       });
       dispatch({ type: "oauth-waiting", sessionId: result.sessionId });
@@ -247,7 +248,7 @@ export default function AddMcpSource(props: {
     dispatch({ type: "add-start" });
     try {
       await doAdd({
-        path: { scopeId: ScopeId.make("default") },
+        path: { scopeId },
         payload: {
           transport: "remote" as const,
           name: probe.serverName ?? probe.name,

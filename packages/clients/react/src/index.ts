@@ -36,6 +36,10 @@ export {
   detectSource,
 } from "./atoms";
 
+// Scope hook
+export { useScope, useScopeInfo } from "./use-scope";
+export type { ScopeInfo } from "./use-scope";
+
 // Provider
 export { ExecutorProvider } from "./provider";
 export { SecretPicker } from "./secret-picker";

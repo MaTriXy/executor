@@ -16,14 +16,14 @@ export const makeTestConfig = <
   const TPlugins extends readonly ExecutorPlugin<string, object>[] = [],
 >(
   options?: {
-    readonly name?: string;
+    readonly cwd?: string;
     readonly plugins?: TPlugins;
   },
 ): ExecutorConfig<TPlugins> => {
+  const cwd = options?.cwd ?? "/test";
   const scope: Scope = {
     id: ScopeId.make("test-scope"),
-    parentId: null,
-    name: options?.name ?? "test",
+    name: cwd,
     createdAt: new Date(),
   };
 

@@ -1,7 +1,9 @@
 import { useAtomValue, Result, toolsAtom } from "@executor/react";
+import { useScope } from "../lib/use-scope";
 
 export function ToolsPage() {
-  const tools = useAtomValue(toolsAtom());
+  const scopeId = useScope();
+  const tools = useAtomValue(toolsAtom(scopeId));
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">

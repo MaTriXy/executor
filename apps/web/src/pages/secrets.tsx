@@ -9,7 +9,8 @@ import {
   removeSecret,
 } from "@executor/react";
 import type { SecretProviderPlugin } from "@executor/react";
-import { SecretId, ScopeId } from "@executor/sdk";
+import { SecretId } from "@executor/sdk";
+import { useScope } from "../lib/use-scope";
 import { onePasswordSecretProviderPlugin } from "@executor/plugin-onepassword/react";
 import {
   Dialog,
@@ -51,8 +52,9 @@ function AddSecretDialog(props: { open: boolean; onOpenChange: (v: boolean) => v
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const scopeId = useScope();
   const doSet = useAtomSet(setSecret, { mode: "promise" });
-  const refresh = useAtomRefresh(secretsAtom());
+  const refresh = useAtomRefresh(secretsAtom(scopeId));
 
   const reset = () => {
     setId("");
@@ -70,7 +72,7 @@ function AddSecretDialog(props: { open: boolean; onOpenChange: (v: boolean) => v
     setError(null);
     try {
       await doSet({
-        path: { scopeId: ScopeId.make("default") },
+        path: { scopeId },
         payload: {
           id: SecretId.make(id.trim()),
           name: name.trim(),
@@ -275,15 +277,16 @@ const secretProviderPlugins: SecretProviderPlugin[] = [
 
 export function SecretsPage() {
   const [addOpen, setAddOpen] = useState(false);
-  const secrets = useAtomValue(secretsAtom());
+  const scopeId = useScope();
+  const secrets = useAtomValue(secretsAtom(scopeId));
   const doRemove = useAtomSet(removeSecret, { mode: "promise" });
-  const refresh = useAtomRefresh(secretsAtom());
+  const refresh = useAtomRefresh(secretsAtom(scopeId));
 
   const handleRemove = async (secretId: string) => {
     try {
       await doRemove({
         path: {
-          scopeId: ScopeId.make("default"),
+          scopeId,
           secretId: SecretId.make(secretId),
         },
       });

@@ -206,7 +206,11 @@ export const openApiPlugin = (options?: {
             Effect.gen(function* () {
               const trimmed = url.trim();
               if (!trimmed) return null;
-              try { new URL(trimmed); } catch { return null; }
+              try {
+                new URL(trimmed);
+              } catch {
+                return null;
+              }
 
               // Try fetching the URL and parsing as OpenAPI spec
               // parse() handles both URLs directly and spec text
@@ -310,7 +314,7 @@ export const openApiPlugin = (options?: {
               id: "openapi.previewSpec",
               name: "openapi.previewSpec",
               description:
-                "Preview an OpenAPI document before adding it as a source",
+                "Preview an OpenAPI document before adding it as a source \n\n  ```ts \ntesting this```",
               inputSchema: PreviewSpecInputSchema,
               outputSchema: SpecPreview,
               handler: ({ spec }: PreviewSpecInput) => previewSpec(spec),

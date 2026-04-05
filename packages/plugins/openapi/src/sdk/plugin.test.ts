@@ -181,8 +181,7 @@ layer(TestLayer)("OpenAPI Plugin", (it) => {
 
       const scope = {
         id: ScopeId.make("test-scope"),
-        parentId: null,
-        name: "test",
+        name: "/test",
         createdAt: new Date(),
       } as const;
 

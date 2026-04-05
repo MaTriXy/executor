@@ -1,7 +1,27 @@
+import { isValidElement, Children, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
-import { createCodeHighlighterPlugin } from "../lib/shiki";
+import { CodeBlock } from "./code-block";
 
-const codePlugin = createCodeHighlighterPlugin();
+function extractText(node: ReactNode): string {
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (isValidElement(node) && node.props) {
+    return extractText((node.props as { children?: ReactNode }).children);
+  }
+  return "";
+}
+
+function PreBlock(props: { children?: ReactNode; node?: unknown }) {
+  const child = Children.toArray(props.children)[0];
+  if (isValidElement(child) && (child.type === "code" || (child.props as Record<string, unknown>)?.className)) {
+    const childProps = child.props as { className?: string; children?: ReactNode };
+    const lang = childProps.className?.replace("language-", "") ?? undefined;
+    const code = extractText(childProps.children).replace(/\n$/, "");
+    return <CodeBlock code={code} lang={lang} className="my-2" />;
+  }
+  return <pre>{props.children}</pre>;
+}
 
 const PROSE_CLASSES = [
   "text-[13px] leading-relaxed text-muted-foreground",
@@ -13,10 +33,6 @@ const PROSE_CLASSES = [
   // inline code
   "[&_code]:font-mono [&_code]:text-xs [&_code]:bg-muted [&_code]:border [&_code]:border-border",
   "[&_code]:rounded-sm [&_code]:px-1.5 [&_code]:py-px [&_code]:text-primary",
-  // pre blocks
-  "[&_pre]:bg-muted [&_pre]:border [&_pre]:border-border [&_pre]:rounded-md",
-  "[&_pre]:px-3 [&_pre]:py-2 [&_pre]:overflow-x-auto [&_pre]:my-2 [&_pre]:text-xs [&_pre]:leading-relaxed",
-  "[&_pre_code]:bg-transparent [&_pre_code]:border-0 [&_pre_code]:p-0 [&_pre_code]:text-inherit",
   // links
   "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2",
   "[&_a]:decoration-primary/30 hover:[&_a]:decoration-primary/80",
@@ -43,7 +59,10 @@ const PROSE_CLASSES = [
 export function Markdown(props: { children: string; className?: string }) {
   return (
     <div className={props.className ? `${PROSE_CLASSES} ${props.className}` : PROSE_CLASSES}>
-      <Streamdown plugins={{ code: codePlugin }} controls={{ code: true }} linkSafety={{ enabled: false }}>
+      <Streamdown
+        linkSafety={{ enabled: false }}
+        components={{ pre: PreBlock as never }}
+      >
         {props.children}
       </Streamdown>
     </div>

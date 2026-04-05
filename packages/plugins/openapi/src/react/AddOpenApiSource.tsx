@@ -6,7 +6,7 @@ import {
   secretsAtom,
   setSecret,
   resolveSecret,
-  ScopeId,
+  useScope,
   SecretPicker,
   type SecretPickerSecret,
 } from "@executor/react";
@@ -38,8 +38,9 @@ function InlineCreateSecret(props: {
   const [secretValue, setSecretValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scopeId = useScope();
   const doSet = useAtomSet(setSecret, { mode: "promise" });
-  const refreshSecrets = useAtomRefresh(secretsAtom());
+  const refreshSecrets = useAtomRefresh(secretsAtom(scopeId));
 
   const handleSave = async () => {
     if (!secretId.trim() || !secretValue.trim()) return;
@@ -47,7 +48,7 @@ function InlineCreateSecret(props: {
     setError(null);
     try {
       await doSet({
-        path: { scopeId: ScopeId.make("default") },
+        path: { scopeId },
         payload: {
           id: SecretId.make(secretId.trim()),
           name: secretName.trim() || secretId.trim(),
@@ -129,6 +130,7 @@ function HeaderValuePreview(props: {
   prefix?: string;
 }) {
   const { headerName, secretId, prefix } = props;
+  const scopeId = useScope();
   const [state, setState] = useState<ResolveState>({ status: "hidden" });
   const doResolve = useAtomSet(resolveSecret, { mode: "promise" });
 
@@ -141,7 +143,7 @@ function HeaderValuePreview(props: {
     try {
       const result = await doResolve({
         path: {
-          scopeId: ScopeId.make("default"),
+          scopeId,
           secretId: SecretId.make(secretId),
         },
       });
@@ -433,9 +435,10 @@ export default function AddOpenApiSource(props: {
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
+  const scopeId = useScope();
   const doPreview = useAtomSet(previewOpenApiSpec, { mode: "promise" });
   const doAdd = useAtomSet(addOpenApiSpec, { mode: "promise" });
-  const secrets = useAtomValue(secretsAtom());
+  const secrets = useAtomValue(secretsAtom(scopeId));
   const autoAnalyzed = useRef(false);
 
   useEffect(() => {
@@ -497,7 +500,7 @@ export default function AddOpenApiSource(props: {
     setAddError(null);
     try {
       const result = await doPreview({
-        path: { scopeId: "default" as never },
+        path: { scopeId },
         payload: { spec: specUrl },
       });
       setPreview(result);
@@ -546,7 +549,7 @@ export default function AddOpenApiSource(props: {
     setAddError(null);
     try {
       await doAdd({
-        path: { scopeId: "default" as never },
+        path: { scopeId },
         payload: {
           spec: specUrl,
           baseUrl: baseUrl.trim() || undefined,

@@ -5,7 +5,7 @@ import { NodeFileSystem } from "@effect/platform-node";
 import * as fs from "node:fs";
 
 import { createExecutor, scopeKv } from "@executor/sdk";
-import { makeSqliteKv, makeKvConfig, migrate } from "@executor/storage-file";
+import { makeSqliteKv, makeKvConfig, makeScopedKv, migrate } from "@executor/storage-file";
 import { withConfigFile } from "@executor/config";
 import { openApiPlugin, makeKvOperationStore, type OpenApiPluginExtension } from "@executor/plugin-openapi";
 import { mcpPlugin, makeKvBindingStore, type McpPluginExtension } from "@executor/plugin-mcp";
@@ -82,8 +82,10 @@ const ExecutorLayer = Layer.effect(
 
     yield* migrate.pipe(Effect.catchAll((e) => Effect.die(e)));
 
+    const cwd = process.cwd();
     const kv = makeSqliteKv(sql);
-    const config = makeKvConfig(kv);
+    const config = makeKvConfig(kv, { cwd });
+    const scopedKv = makeScopedKv(kv, cwd);
 
     const configPath = join(process.cwd(), "executor.jsonc");
     const fsLayer = NodeFileSystem.layer;
@@ -93,24 +95,24 @@ const ExecutorLayer = Layer.effect(
       plugins: [
         openApiPlugin({
           operationStore: withConfigFile.openapi(
-            makeKvOperationStore(kv, "openapi"),
+            makeKvOperationStore(scopedKv, "openapi"),
             configPath,
             fsLayer,
           ),
         }),
         mcpPlugin({
           bindingStore: withConfigFile.mcp(
-            makeKvBindingStore(kv, "mcp"),
+            makeKvBindingStore(scopedKv, "mcp"),
             configPath,
             fsLayer,
           ),
         }),
         googleDiscoveryPlugin({
-          bindingStore: makeKvGoogleDiscoveryBindingStore(kv, "google-discovery"),
+          bindingStore: makeKvGoogleDiscoveryBindingStore(scopedKv, "google-discovery"),
         }),
         graphqlPlugin({
           operationStore: withConfigFile.graphql(
-            makeKvGraphqlOperationStore(kv, "graphql"),
+            makeKvGraphqlOperationStore(scopedKv, "graphql"),
             configPath,
             fsLayer,
           ),
@@ -118,7 +120,7 @@ const ExecutorLayer = Layer.effect(
         keychainPlugin(),
         fileSecretsPlugin(),
         onepasswordPlugin({
-          kv: scopeKv(kv, "onepassword"),
+          kv: scopeKv(scopedKv, "onepassword"),
         }),
       ] as const,
     });

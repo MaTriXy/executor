@@ -4,9 +4,10 @@ import {
   useAtomRefresh,
   useAtomValue,
   Result,
-  sourceToolsAtom,
   sourcesAtom,
   toolsAtom,
+  useScope,
+  useScopeInfo,
 } from "@executor/react";
 import { Button } from "@executor/ui/components/button";
 
@@ -190,7 +191,8 @@ function NavItem(props: { to: string; label: string; active: boolean; onNavigate
 // ── SourceList ───────────────────────────────────────────────────────────
 
 function SourceList(props: { pathname: string; onNavigate?: () => void }) {
-  const sources = useAtomValue(sourcesAtom());
+  const scopeId = useScope();
+  const sources = useAtomValue(sourcesAtom(scopeId));
 
   return Result.match(sources, {
     onInitial: () => (
@@ -236,6 +238,30 @@ function SourceList(props: { pathname: string; onNavigate?: () => void }) {
   });
 }
 
+// ── ScopeLabel ───────────────────────────────────────────────────────────
+
+function ScopeLabel() {
+  const { name } = useScopeInfo();
+  // Show just the last folder name, with full path as tooltip
+  const parts = name.replace(/\/+$/, "").split("/");
+  const folder = parts[parts.length - 1] || name;
+
+  return (
+    <div className="mb-1.5 flex items-center gap-1.5 rounded-md px-2.5 py-1.5" title={name}>
+      <svg viewBox="0 0 16 16" fill="none" className="size-3.5 shrink-0 text-muted-foreground/50">
+        <path
+          d="M2 4.5C2 3.67 2.67 3 3.5 3h3.09a1 1 0 0 1 .7.29l1.42 1.42a1 1 0 0 0 .7.29H12.5c.83 0 1.5.67 1.5 1.5v5.5c0 .83-.67 1.5-1.5 1.5h-9A1.5 1.5 0 0 1 2 12V4.5z"
+          stroke="currentColor"
+          strokeWidth="1.2"
+        />
+      </svg>
+      <span className="truncate text-[12px] font-medium text-foreground/80">
+        {folder}
+      </span>
+    </div>
+  );
+}
+
 // ── SidebarContent ───────────────────────────────────────────────────────
 
 function SidebarContent(props: {
@@ -265,6 +291,7 @@ function SidebarContent(props: {
       )}
 
       <nav className="flex flex-1 flex-col overflow-y-auto p-2">
+        <ScopeLabel />
         <NavItem
           to="/"
           label="Dashboard"
@@ -338,14 +365,9 @@ function SidebarContent(props: {
 export function Shell() {
   const location = useLocation();
   const pathname = location.pathname;
-  const currentSourceId = pathname.startsWith("/sources/")
-    ? decodeURIComponent(pathname.slice("/sources/".length).split("/")[0] ?? "")
-    : null;
-  const refreshSources = useAtomRefresh(sourcesAtom());
-  const refreshTools = useAtomRefresh(toolsAtom());
-  const refreshSourceTools = useAtomRefresh(
-    sourceToolsAtom(currentSourceId ?? "__runtime__"),
-  );
+  const scopeId = useScope();
+  const refreshSources = useAtomRefresh(sourcesAtom(scopeId));
+  const refreshTools = useAtomRefresh(toolsAtom(scopeId));
   const { latestVersion, updateAvailable, channel } = useLatestVersion(VITE_APP_VERSION);
   const lastPathname = useRef(pathname);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -372,9 +394,6 @@ export function Shell() {
     const refreshBackendData = () => {
       refreshSources();
       refreshTools();
-      if (currentSourceId) {
-        refreshSourceTools();
-      }
     };
 
     import.meta.hot.on("executor:backend-updated", refreshBackendData);
@@ -382,7 +401,7 @@ export function Shell() {
     return () => {
       import.meta.hot?.off("executor:backend-updated", refreshBackendData);
     };
-  }, [currentSourceId, refreshSourceTools, refreshSources, refreshTools]);
+  }, [refreshSources, refreshTools]);
 
   return (
     <div className="flex h-screen overflow-hidden">

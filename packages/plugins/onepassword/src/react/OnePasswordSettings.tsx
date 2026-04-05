@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAtomSet, useAtomValue, useAtomRefresh } from "@effect-atom/atom-react";
 import { Result } from "@effect-atom/atom-react";
-import { ScopeId } from "@executor/sdk";
+import { useScope } from "@executor/react";
 import { Button } from "@executor/ui/components/button";
 import { Input } from "@executor/ui/components/input";
 import { Label } from "@executor/ui/components/label";
@@ -41,8 +41,9 @@ function VaultPicker(props: {
   onVaultSelect: (id: string, name: string) => void;
 }) {
   const account = props.accountName.trim();
+  const scopeId = useScope();
   const vaultsResult = useAtomValue(
-    onepasswordVaultsAtom(props.authKind, account),
+    onepasswordVaultsAtom(props.authKind, account, scopeId),
   );
 
   const { vaults, isLoading, error } = Result.match(
@@ -117,8 +118,9 @@ function ConfigDialog(props: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const scopeId = useScope();
   const doConfigure = useAtomSet(configureOnePassword, { mode: "promise" });
-  const refreshConfig = useAtomRefresh(onepasswordConfigAtom());
+  const refreshConfig = useAtomRefresh(onepasswordConfigAtom(scopeId));
 
   const reset = () => {
     if (!isEdit) {
@@ -142,7 +144,7 @@ function ConfigDialog(props: {
           : { kind: "service-account" as const, tokenSecretId: accountName.trim() };
 
       await doConfigure({
-        path: { scopeId: "default" as ScopeId },
+        path: { scopeId },
         payload: { auth, vaultId: vaultId.trim(), name: vaultName.trim() || "1Password" },
       });
       props.onOpenChange(false);
@@ -256,13 +258,14 @@ function ConfigDialog(props: {
 
 export default function OnePasswordSettings() {
   const [configOpen, setConfigOpen] = useState(false);
-  const configResult = useAtomValue(onepasswordConfigAtom());
+  const scopeId = useScope();
+  const configResult = useAtomValue(onepasswordConfigAtom(scopeId));
   const doRemove = useAtomSet(removeOnePasswordConfig, { mode: "promise" });
-  const refreshConfig = useAtomRefresh(onepasswordConfigAtom());
+  const refreshConfig = useAtomRefresh(onepasswordConfigAtom(scopeId));
 
   const handleRemove = async () => {
     try {
-      await doRemove({ path: { scopeId: "default" as ScopeId } });
+      await doRemove({ path: { scopeId } });
       refreshConfig();
     } catch { /* TODO: toast */ }
   };

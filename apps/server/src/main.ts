@@ -17,6 +17,7 @@ import { ToolsHandlers } from "./handlers/tools";
 import { SourcesHandlers } from "./handlers/sources";
 import { SecretsHandlers } from "./handlers/secrets";
 import { ExecutionsHandlers } from "./handlers/executions";
+import { ScopeHandlers } from "./handlers/scope";
 import { OpenApiHandlersLive } from "./handlers/openapi";
 import { McpSourceHandlersLive } from "./handlers/mcp-source";
 import { GoogleDiscoveryHandlersLive } from "./handlers/google-discovery";
@@ -46,6 +47,7 @@ const ApiBase = HttpApiBuilder.api(ExecutorApiWithPlugins).pipe(
     SourcesHandlers,
     SecretsHandlers,
     ExecutionsHandlers,
+    ScopeHandlers,
     OpenApiHandlersLive,
     McpSourceHandlersLive,
     GoogleDiscoveryHandlersLive,

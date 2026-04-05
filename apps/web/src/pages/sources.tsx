@@ -1,6 +1,7 @@
 import { useReducer, useCallback, useMemo, Suspense } from "react";
 import { Link } from "@tanstack/react-router";
 import { Result, useAtomValue, useAtomRefresh, useAtomSet, sourcesAtom, detectSource } from "@executor/react";
+import { useScope } from "../lib/use-scope";
 import type { SourcePlugin, SourcePreset } from "@executor/react";
 import { openApiSourcePlugin } from "@executor/plugin-openapi/react";
 import { mcpSourcePlugin } from "@executor/plugin-mcp/react";
@@ -82,8 +83,9 @@ function reducer(state: State, action: Action): State {
 
 export function SourcesPage() {
   const [state, dispatch] = useReducer(reducer, init);
-  const sources = useAtomValue(sourcesAtom());
-  const refreshSources = useAtomRefresh(sourcesAtom());
+  const scopeId = useScope();
+  const sources = useAtomValue(sourcesAtom(scopeId));
+  const refreshSources = useAtomRefresh(sourcesAtom(scopeId));
   const doDetect = useAtomSet(detectSource, { mode: "promise" });
 
   const handleDetect = useCallback(async () => {
@@ -92,7 +94,7 @@ export function SourcesPage() {
     dispatch({ type: "detect-start" });
     try {
       const results = await doDetect({
-        path: { scopeId: "default" as any },
+        path: { scopeId },
         payload: { url: trimmed },
       });
       if (results.length === 0) {

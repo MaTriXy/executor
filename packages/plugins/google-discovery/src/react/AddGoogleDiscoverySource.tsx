@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAtomSet, useAtomValue, Result } from "@effect-atom/atom-react";
 
 import {
-  ScopeId,
+  useScope,
   SecretPicker,
   secretsAtom,
   type SecretPickerSecret,
@@ -212,8 +212,6 @@ type OAuthPopupResult =
       error: string;
     };
 
-const DEFAULT_SCOPE = ScopeId.make("default");
-
 function openOAuthPopup(
   url: string,
   onResult: (data: OAuthPopupResult) => void,
@@ -287,10 +285,11 @@ export default function AddGoogleDiscoverySource(props: {
   const [error, setError] = useState<string | null>(null);
   const [showScopes, setShowScopes] = useState(false);
 
+  const scopeId = useScope();
   const doProbe = useAtomSet(probeGoogleDiscovery, { mode: "promise" });
   const doAdd = useAtomSet(addGoogleDiscoverySource, { mode: "promise" });
   const doStartOAuth = useAtomSet(startGoogleDiscoveryOAuth, { mode: "promise" });
-  const secrets = useAtomValue(secretsAtom());
+  const secrets = useAtomValue(secretsAtom(scopeId));
 
   const canUseOAuth = useMemo(
     () => (probe?.scopes.length ?? 0) > 0,
@@ -326,7 +325,7 @@ export default function AddGoogleDiscoverySource(props: {
     setShowScopes(false);
     try {
       const result = await doProbe({
-        path: { scopeId: DEFAULT_SCOPE },
+        path: { scopeId },
         payload: { discoveryUrl: discoveryUrl.trim() },
       });
       setProbe({ ...result, scopes: [...result.scopes] });
@@ -358,7 +357,7 @@ export default function AddGoogleDiscoverySource(props: {
     setError(null);
     try {
       const response = await doStartOAuth({
-        path: { scopeId: DEFAULT_SCOPE },
+        path: { scopeId },
         payload: {
           name: name.trim() || probe.name,
           discoveryUrl: discoveryUrl.trim(),
@@ -406,7 +405,7 @@ export default function AddGoogleDiscoverySource(props: {
     setError(null);
     try {
       await doAdd({
-        path: { scopeId: DEFAULT_SCOPE },
+        path: { scopeId },
         payload: {
           name: name.trim() || probe.name,
           discoveryUrl: discoveryUrl.trim(),
