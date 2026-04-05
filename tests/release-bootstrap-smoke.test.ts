@@ -161,15 +161,75 @@ describe("release bootstrap smoke", () => {
         const installedBinaryStat = await readFile(installedBinaryPath);
         expect(installedBinaryStat.byteLength).toBeGreaterThan(0);
 
-        const secondRun = await runCommand(
-          process.execPath,
-          [join(installedPackageDir, "bin", "executor"), "--help"],
-          installedPackageDir,
-        );
-        const secondCombinedOutput = `${secondRun.stdout}\n${secondRun.stderr}`;
+        const probeServer = createServer((_, response) => {
+          response.statusCode = 204;
+          response.end();
+        });
+        const webPort = await listen(probeServer);
+        await closeServer(probeServer);
 
-        expect(secondRun.exitCode, secondCombinedOutput).toBe(0);
-        expect(secondCombinedOutput).not.toContain("downloading release asset");
+        const webProcess = spawn(
+          process.execPath,
+          [join(installedPackageDir, "bin", "executor"), "web", "--port", String(webPort)],
+          {
+            cwd: installedPackageDir,
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+
+        let webStdout = "";
+        let webStderr = "";
+        webProcess.stdout.setEncoding("utf8");
+        webProcess.stdout.on("data", (chunk) => {
+          webStdout += chunk;
+        });
+        webProcess.stderr.setEncoding("utf8");
+        webProcess.stderr.on("data", (chunk) => {
+          webStderr += chunk;
+        });
+
+        try {
+          const deadline = Date.now() + 30_000;
+          let rootResponse: Response | null = null;
+          while (Date.now() < deadline) {
+            await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+            try {
+              rootResponse = await fetch(`http://127.0.0.1:${webPort}/`);
+              if (rootResponse.ok) {
+                break;
+              }
+            } catch {
+              // keep polling until the server is ready
+            }
+          }
+
+          expect(rootResponse, `${webStdout}\n${webStderr}`).not.toBeNull();
+          expect(rootResponse!.status, `${webStdout}\n${webStderr}`).toBe(200);
+          const rootHtml = await rootResponse!.text();
+          expect(rootHtml.toLowerCase()).toContain("<html");
+
+          const docsResponse = await fetch(`http://127.0.0.1:${webPort}/docs`);
+          expect(docsResponse.status, `${webStdout}\n${webStderr}`).toBe(200);
+
+          const secondRun = await runCommand(
+            process.execPath,
+            [join(installedPackageDir, "bin", "executor"), "--help"],
+            installedPackageDir,
+          );
+          const secondCombinedOutput = `${secondRun.stdout}\n${secondRun.stderr}`;
+
+          expect(secondRun.exitCode, secondCombinedOutput).toBe(0);
+          expect(secondCombinedOutput).not.toContain("downloading release asset");
+        } finally {
+          webProcess.kill("SIGTERM");
+          await Promise.race([
+            new Promise((resolveClose) => webProcess.once("close", () => resolveClose(undefined))),
+            new Promise((resolveClose) => setTimeout(resolveClose, 5_000)),
+          ]);
+          if (webProcess.exitCode === null) {
+            webProcess.kill("SIGKILL");
+          }
+        }
       } finally {
         await closeServer(server);
         await rm(tempRoot, { recursive: true, force: true });

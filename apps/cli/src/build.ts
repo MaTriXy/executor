@@ -121,6 +121,8 @@ const createEmbeddedWebUISource = async () => {
 // Build platform binaries
 // ---------------------------------------------------------------------------
 
+const EMBEDDED_WEB_UI_STUB = `const files: Record<string, string> | null = null;\n\nexport default files;\n`;
+
 const buildBinaries = async (targets: Target[]) => {
   const meta = await readMetadata();
   const binaries: Record<string, string> = {};
@@ -143,7 +145,7 @@ const buildBinaries = async (targets: Target[]) => {
     console.log(`Building ${name}...`);
 
     await Bun.build({
-      entrypoints: [join(cliRoot, "src/main.ts"), embeddedWebUIPath],
+      entrypoints: [join(cliRoot, "src/main.ts")],
       minify: true,
       compile: {
         target: bunTarget(target) as any,
@@ -183,7 +185,7 @@ const buildBinaries = async (targets: Target[]) => {
 
     return binaries;
   } finally {
-    await rm(embeddedWebUIPath, { force: true });
+    await writeFile(embeddedWebUIPath, EMBEDDED_WEB_UI_STUB);
   }
 };
 
