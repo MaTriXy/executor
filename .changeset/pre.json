@@ -27,6 +27,7 @@
   },
   "changesets": [
     "kind-cycles-hang",
-    "ripe-yaks-sniff"
+    "ripe-yaks-sniff",
+    "tiny-melons-jump"
   ]
 }
