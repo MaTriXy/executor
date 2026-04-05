@@ -42,9 +42,11 @@
       "version": "1.4.0-beta.0",
       "dependencies": {
         "@effect/platform": "catalog:",
+        "@effect/platform-node": "catalog:",
         "@effect/sql": "catalog:",
         "@effect/sql-sqlite-bun": "catalog:",
         "@executor/api": "workspace:*",
+        "@executor/config": "workspace:*",
         "@executor/execution": "workspace:*",
         "@executor/host-mcp": "workspace:*",
         "@executor/plugin-file-secrets": "workspace:*",
@@ -128,6 +130,22 @@
         "@types/node": "catalog:",
         "bun-types": "catalog:",
         "typescript": "^5.9.3",
+      },
+    },
+    "packages/core/config": {
+      "name": "@executor/config",
+      "version": "1.4.0-beta.0",
+      "dependencies": {
+        "@effect/platform": "catalog:",
+        "@executor/sdk": "workspace:*",
+        "effect": "catalog:",
+        "jsonc-parser": "^3.3.1",
+      },
+      "devDependencies": {
+        "@effect/platform-node": "catalog:",
+        "@effect/vitest": "catalog:",
+        "typescript": "latest",
+        "vitest": "catalog:",
       },
     },
     "packages/core/execution": {
@@ -667,6 +685,8 @@
     "@executor/cli": ["@executor/cli@workspace:apps/cli"],
 
     "@executor/codemode-core": ["@executor/codemode-core@workspace:packages/kernel/core"],
+
+    "@executor/config": ["@executor/config@workspace:packages/core/config"],
 
     "@executor/execution": ["@executor/execution@workspace:packages/core/execution"],
 
@@ -1608,6 +1628,8 @@
 
     "json5": ["json5@2.2.3", "", { "bin": { "json5": "lib/cli.js" } }, "sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg=="],
 
+    "jsonc-parser": ["jsonc-parser@3.3.1", "", {}, "sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ=="],
+
     "katex": ["katex@0.16.44", "", { "dependencies": { "commander": "^8.3.0" }, "bin": { "katex": "cli.js" } }, "sha512-EkxoDTk8ufHqHlf9QxGwcxeLkWRR3iOuYfRpfORgYfqc8s13bgb+YtRY59NK5ZpRaCwq1kqA6a5lpX8C/eLphQ=="],
 
     "khroma": ["khroma@2.1.0", "", {}, "sha512-Ls993zuzfayK269Svk9hzpeGUKob/sIgZzyHYdjQoAdQetRKpOLj+k/QQQ/6Qi0Yz65mlROrfd+Ev+1+7dz9Kw=="],
@@ -2131,6 +2153,8 @@
     "@babel/core/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
     "@babel/helper-compilation-targets/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
+
+    "@executor/config/typescript": ["typescript@6.0.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ=="],
 
     "@executor/sdk/typescript": ["typescript@6.0.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ=="],
 

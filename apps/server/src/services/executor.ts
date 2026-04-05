@@ -1,10 +1,12 @@
 import { Context, Effect, Layer, ManagedRuntime } from "effect";
 import { SqliteClient } from "@effect/sql-sqlite-bun";
 import * as SqlClient from "@effect/sql/SqlClient";
+import { NodeFileSystem } from "@effect/platform-node";
 import * as fs from "node:fs";
 
 import { createExecutor, scopeKv } from "@executor/sdk";
 import { makeSqliteKv, makeKvConfig, migrate } from "@executor/storage-file";
+import { withConfigFile } from "@executor/config";
 import { openApiPlugin, makeKvOperationStore, type OpenApiPluginExtension } from "@executor/plugin-openapi";
 import { mcpPlugin, makeKvBindingStore, type McpPluginExtension } from "@executor/plugin-mcp";
 import {
@@ -83,20 +85,35 @@ const ExecutorLayer = Layer.effect(
     const kv = makeSqliteKv(sql);
     const config = makeKvConfig(kv);
 
+    const configPath = join(process.cwd(), "executor.jsonc");
+    const fsLayer = NodeFileSystem.layer;
+
     return yield* createExecutor({
       ...config,
       plugins: [
         openApiPlugin({
-          operationStore: makeKvOperationStore(kv, "openapi"),
+          operationStore: withConfigFile.openapi(
+            makeKvOperationStore(kv, "openapi"),
+            configPath,
+            fsLayer,
+          ),
         }),
         mcpPlugin({
-          bindingStore: makeKvBindingStore(kv, "mcp"),
+          bindingStore: withConfigFile.mcp(
+            makeKvBindingStore(kv, "mcp"),
+            configPath,
+            fsLayer,
+          ),
         }),
         googleDiscoveryPlugin({
           bindingStore: makeKvGoogleDiscoveryBindingStore(kv, "google-discovery"),
         }),
         graphqlPlugin({
-          operationStore: makeKvGraphqlOperationStore(kv, "graphql"),
+          operationStore: withConfigFile.graphql(
+            makeKvGraphqlOperationStore(kv, "graphql"),
+            configPath,
+            fsLayer,
+          ),
         }),
         keychainPlugin(),
         fileSecretsPlugin(),

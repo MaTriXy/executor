@@ -15,7 +15,6 @@ import {
 
 import type {
   GoogleDiscoveryBindingStore,
-  GoogleDiscoverySourceMeta,
 } from "./binding-store";
 import { makeInMemoryBindingStore } from "./binding-store";
 import { extractGoogleDiscoveryManifest } from "./document";
@@ -229,11 +228,11 @@ const registerManifest = (
     );
 
     yield* ctx.tools.register(registrations);
-    yield* bindingStore.putSourceMeta({
+    yield* bindingStore.putSource({
       namespace,
       name: sourceData.name,
-    } satisfies GoogleDiscoverySourceMeta);
-    yield* bindingStore.putSourceData(namespace, sourceData);
+      config: sourceData,
+    });
 
     return registrations.length;
   });
@@ -283,13 +282,13 @@ export const googleDiscoveryPlugin = (options?: {
         yield* ctx.sources.addManager({
           kind: "googleDiscovery",
           list: () =>
-            bindingStore.listSourceMeta().pipe(
-              Effect.map((metas) =>
-                metas.map(
-                  (meta) =>
+            bindingStore.listSources().pipe(
+              Effect.map((sources) =>
+                sources.map(
+                  (s) =>
                     new Source({
-                      id: meta.namespace,
-                      name: meta.name,
+                      id: s.namespace,
+                      name: s.name,
                       kind: "googleDiscovery",
                       runtime: false,
                       canRemove: true,
@@ -304,8 +303,7 @@ export const googleDiscoveryPlugin = (options?: {
               if (toolIds.length > 0) {
                 yield* ctx.tools.unregister(toolIds);
               }
-              yield* bindingStore.removeSourceMeta(sourceId);
-              yield* bindingStore.removeSourceData(sourceId);
+              yield* bindingStore.removeSource(sourceId);
             }),
           detect: (url: string) =>
             Effect.gen(function* () {
@@ -344,7 +342,7 @@ export const googleDiscoveryPlugin = (options?: {
             }),
           refresh: (sourceId) =>
             Effect.gen(function* () {
-              const sourceData = yield* bindingStore.getSourceData(sourceId);
+              const sourceData = yield* bindingStore.getSourceConfig(sourceId);
               if (!sourceData) return;
               const discoveryText = yield* fetchDiscoveryDocument(
                 sourceData.discoveryUrl,
@@ -437,8 +435,7 @@ export const googleDiscoveryPlugin = (options?: {
               if (toolIds.length > 0) {
                 yield* ctx.tools.unregister(toolIds);
               }
-              yield* bindingStore.removeSourceMeta(namespace);
-              yield* bindingStore.removeSourceData(namespace);
+              yield* bindingStore.removeSource(namespace);
             }),
 
           startOAuth: (input) =>

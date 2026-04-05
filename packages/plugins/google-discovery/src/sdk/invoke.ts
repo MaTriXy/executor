@@ -224,7 +224,11 @@ const resolveOAuthAccessToken = (input: {
         scopes: auth.scopes,
       },
     });
-    yield* input.bindingStore.putSourceData(input.sourceId, updatedSource);
+    yield* input.bindingStore.putSource({
+      namespace: input.sourceId,
+      name: input.source.name,
+      config: updatedSource,
+    });
 
     return refreshed.access_token;
   });
@@ -388,7 +392,7 @@ export const makeGoogleDiscoveryInvoker = (input: {
           });
         }
 
-        const source = yield* input.bindingStore.getSourceData(entry.namespace);
+        const source = yield* input.bindingStore.getSourceConfig(entry.namespace);
         if (!source) {
           return yield* new ToolInvocationError({
             toolId,

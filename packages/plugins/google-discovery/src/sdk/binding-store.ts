@@ -23,16 +23,11 @@ const encodeBindingEntry = Schema.encodeSync(
 const decodeBindingEntry = Schema.decodeUnknownSync(
   Schema.parseJson(StoredBindingEntry),
 );
-const encodeSourceData = Schema.encodeSync(
-  Schema.parseJson(GoogleDiscoveryStoredSourceData),
-);
-const decodeSourceData = Schema.decodeUnknownSync(
-  Schema.parseJson(GoogleDiscoveryStoredSourceData),
-);
 
-export interface GoogleDiscoverySourceMeta {
+export interface GoogleDiscoveryStoredSource {
   readonly namespace: string;
   readonly name: string;
+  readonly config: GoogleDiscoveryStoredSourceData;
 }
 
 export interface GoogleDiscoveryBindingStore {
@@ -57,24 +52,17 @@ export interface GoogleDiscoveryBindingStore {
     namespace: string,
   ) => Effect.Effect<readonly ToolId[]>;
 
-  readonly putSourceMeta: (meta: GoogleDiscoverySourceMeta) => Effect.Effect<void>;
-  readonly removeSourceMeta: (namespace: string) => Effect.Effect<void>;
-  readonly listSourceMeta: () => Effect.Effect<readonly GoogleDiscoverySourceMeta[]>;
-
-  readonly putSourceData: (
-    namespace: string,
-    data: GoogleDiscoveryStoredSourceData,
-  ) => Effect.Effect<void>;
-  readonly getSourceData: (
+  readonly putSource: (source: GoogleDiscoveryStoredSource) => Effect.Effect<void>;
+  readonly removeSource: (namespace: string) => Effect.Effect<void>;
+  readonly listSources: () => Effect.Effect<readonly GoogleDiscoveryStoredSource[]>;
+  readonly getSourceConfig: (
     namespace: string,
   ) => Effect.Effect<GoogleDiscoveryStoredSourceData | null>;
-  readonly removeSourceData: (namespace: string) => Effect.Effect<void>;
 }
 
 const makeStore = (
   bindings: ScopedKv,
-  meta: ScopedKv,
-  config: ScopedKv,
+  sources: ScopedKv,
 ): GoogleDiscoveryBindingStore => ({
   get: (toolId) =>
     Effect.gen(function* () {
@@ -120,29 +108,25 @@ const makeStore = (
       return ids;
     }),
 
-  putSourceMeta: (sourceMeta) =>
-    meta.set(sourceMeta.namespace, JSON.stringify(sourceMeta)),
+  putSource: (source) =>
+    sources.set(source.namespace, JSON.stringify(source)),
 
-  removeSourceMeta: (namespace) =>
-    meta.delete(namespace).pipe(Effect.asVoid),
+  removeSource: (namespace) =>
+    sources.delete(namespace).pipe(Effect.asVoid),
 
-  listSourceMeta: () =>
+  listSources: () =>
     Effect.gen(function* () {
-      const entries = yield* meta.list();
-      return entries.map((entry) => JSON.parse(entry.value) as GoogleDiscoverySourceMeta);
+      const entries = yield* sources.list();
+      return entries.map((e) => JSON.parse(e.value) as GoogleDiscoveryStoredSource);
     }),
 
-  putSourceData: (namespace, data) =>
-    config.set(namespace, encodeSourceData(data)),
-
-  getSourceData: (namespace) =>
+  getSourceConfig: (namespace) =>
     Effect.gen(function* () {
-      const raw = yield* config.get(namespace);
-      return raw ? decodeSourceData(raw) : null;
+      const raw = yield* sources.get(namespace);
+      if (!raw) return null;
+      const source = JSON.parse(raw) as GoogleDiscoveryStoredSource;
+      return source.config;
     }),
-
-  removeSourceData: (namespace) =>
-    config.delete(namespace).pipe(Effect.asVoid),
 });
 
 export const makeKvBindingStore = (
@@ -152,12 +136,10 @@ export const makeKvBindingStore = (
   makeStore(
     scopeKv(kv, `${namespace}.bindings`),
     scopeKv(kv, `${namespace}.sources`),
-    scopeKv(kv, `${namespace}.config`),
   );
 
 export const makeInMemoryBindingStore = (): GoogleDiscoveryBindingStore =>
   makeStore(
-    makeInMemoryScopedKv(),
     makeInMemoryScopedKv(),
     makeInMemoryScopedKv(),
   );

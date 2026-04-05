@@ -179,13 +179,13 @@ export const openApiPlugin = (options?: {
           kind: "openapi",
 
           list: () =>
-            operationStore.listSourceMeta().pipe(
+            operationStore.listSources().pipe(
               Effect.map((metas) =>
                 metas.map(
-                  (meta) =>
+                  (s) =>
                     new Source({
-                      id: meta.namespace,
-                      name: meta.name,
+                      id: s.namespace,
+                      name: s.name,
                       kind: "openapi",
                       runtime: false,
                       canRemove: true,
@@ -198,7 +198,7 @@ export const openApiPlugin = (options?: {
           remove: (sourceId: string) =>
             Effect.gen(function* () {
               yield* operationStore.removeByNamespace(sourceId);
-              yield* operationStore.removeSourceMeta(sourceId);
+              yield* operationStore.removeSource(sourceId);
               yield* ctx.tools.unregisterBySource(sourceId);
             }),
 
@@ -282,9 +282,15 @@ export const openApiPlugin = (options?: {
             yield* ctx.tools.register(registrations);
 
             const sourceName = Option.getOrElse(result.title, () => namespace);
-            yield* operationStore.putSourceMeta({
+            yield* operationStore.putSource({
               namespace,
               name: sourceName,
+              config: {
+                spec: config.spec,
+                baseUrl: config.baseUrl,
+                namespace: config.namespace,
+                headers: config.headers,
+              },
             });
 
             return { sourceId: namespace, toolCount: registrations.length };
@@ -337,7 +343,7 @@ export const openApiPlugin = (options?: {
                 if (toolIds.length > 0) {
                   yield* ctx.tools.unregister(toolIds);
                 }
-                yield* operationStore.removeSourceMeta(namespace);
+                yield* operationStore.removeSource(namespace);
               }),
           },
 

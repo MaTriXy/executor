@@ -8,8 +8,10 @@
   },
   "dependencies": {
     "@effect/platform": "catalog:",
+    "@effect/platform-node": "catalog:",
     "@effect/sql": "catalog:",
     "@effect/sql-sqlite-bun": "catalog:",
+    "@executor/config": "workspace:*",
     "@executor/api": "workspace:*",
     "@executor/execution": "workspace:*",
     "@executor/plugin-file-secrets": "workspace:*",

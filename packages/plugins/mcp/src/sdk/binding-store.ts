@@ -15,12 +15,13 @@ import { McpToolBinding } from "./types";
 import type { McpStoredSourceData } from "./types";
 
 // ---------------------------------------------------------------------------
-// Source metadata
+// Stored source — combines meta + config into one entry
 // ---------------------------------------------------------------------------
 
-export interface McpSourceMeta {
+export interface McpStoredSource {
   readonly namespace: string;
   readonly name: string;
+  readonly config: McpStoredSourceData;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,28 +70,21 @@ export interface McpBindingStore {
     namespace: string,
   ) => Effect.Effect<readonly ToolId[]>;
 
-  readonly putSourceMeta: (meta: McpSourceMeta) => Effect.Effect<void>;
-  readonly removeSourceMeta: (namespace: string) => Effect.Effect<void>;
-  readonly listSourceMeta: () => Effect.Effect<readonly McpSourceMeta[]>;
-
-  readonly putSourceData: (
-    namespace: string,
-    data: McpStoredSourceData,
-  ) => Effect.Effect<void>;
-  readonly getSourceData: (
+  readonly putSource: (source: McpStoredSource) => Effect.Effect<void>;
+  readonly removeSource: (namespace: string) => Effect.Effect<void>;
+  readonly listSources: () => Effect.Effect<readonly McpStoredSource[]>;
+  readonly getSourceConfig: (
     namespace: string,
   ) => Effect.Effect<McpStoredSourceData | null>;
-  readonly removeSourceData: (namespace: string) => Effect.Effect<void>;
 }
 
 // ---------------------------------------------------------------------------
-// Implementation — three separate KV namespaces, no prefix hacks
+// Implementation — two KV namespaces: bindings + sources
 // ---------------------------------------------------------------------------
 
 const makeStore = (
   bindings: ScopedKv,
-  meta: ScopedKv,
-  config: ScopedKv,
+  sources: ScopedKv,
 ): McpBindingStore => ({
   // ---- Bindings ----
 
@@ -138,37 +132,31 @@ const makeStore = (
       return ids;
     }),
 
-  // ---- Source metadata ----
+  // ---- Sources (meta + config combined) ----
 
-  putSourceMeta: (m) =>
-    meta.set(m.namespace, JSON.stringify(m)),
+  putSource: (source) =>
+    sources.set(source.namespace, JSON.stringify(source)),
 
-  removeSourceMeta: (namespace) =>
-    meta.delete(namespace).pipe(Effect.asVoid),
+  removeSource: (namespace) =>
+    sources.delete(namespace).pipe(Effect.asVoid),
 
-  listSourceMeta: () =>
+  listSources: () =>
     Effect.gen(function* () {
-      const entries = yield* meta.list();
-      return entries.map((e) => JSON.parse(e.value) as McpSourceMeta);
+      const entries = yield* sources.list();
+      return entries.map((e) => JSON.parse(e.value) as McpStoredSource);
     }),
 
-  // ---- Source config ----
-
-  putSourceData: (namespace, data) =>
-    config.set(namespace, JSON.stringify(data)),
-
-  getSourceData: (namespace) =>
+  getSourceConfig: (namespace) =>
     Effect.gen(function* () {
-      const raw = yield* config.get(namespace);
-      return raw ? (JSON.parse(raw) as McpStoredSourceData) : null;
+      const raw = yield* sources.get(namespace);
+      if (!raw) return null;
+      const source = JSON.parse(raw) as McpStoredSource;
+      return source.config;
     }),
-
-  removeSourceData: (namespace) =>
-    config.delete(namespace).pipe(Effect.asVoid),
 });
 
 // ---------------------------------------------------------------------------
-// Factory from global Kv — creates three scoped sub-namespaces
+// Factory from global Kv — two scoped sub-namespaces
 // ---------------------------------------------------------------------------
 
 export const makeKvBindingStore = (
@@ -178,7 +166,6 @@ export const makeKvBindingStore = (
   makeStore(
     scopeKv(kv, `${namespace}.bindings`),
     scopeKv(kv, `${namespace}.sources`),
-    scopeKv(kv, `${namespace}.config`),
   );
 
 // ---------------------------------------------------------------------------
@@ -187,7 +174,6 @@ export const makeKvBindingStore = (
 
 export const makeInMemoryBindingStore = (): McpBindingStore =>
   makeStore(
-    makeInMemoryScopedKv(),
     makeInMemoryScopedKv(),
     makeInMemoryScopedKv(),
   );

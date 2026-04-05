@@ -8,7 +8,8 @@ export {
 } from "./plugin";
 export {
   type GraphqlOperationStore,
-  type SourceMeta,
+  type StoredSource,
+  type SourceConfig,
 } from "./operation-store";
 export {
   makeKvOperationStore,

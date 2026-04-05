@@ -282,11 +282,11 @@ export const mcpPlugin = (options?: {
         yield* ctx.tools.registerInvoker("mcp", invoker);
 
         // Restore source metadata
-        const savedMetas = yield* bindingStore.listSourceMeta();
-        for (const meta of savedMetas) {
+        const savedSources = yield* bindingStore.listSources();
+        for (const s of savedSources) {
           addedSources.set(
-            meta.namespace,
-            new Source({ id: meta.namespace, name: meta.name, kind: "mcp" }),
+            s.namespace,
+            new Source({ id: s.namespace, name: s.name, kind: "mcp" }),
           );
         }
 
@@ -373,8 +373,7 @@ export const mcpPlugin = (options?: {
           remove: (sourceId: string) =>
             Effect.gen(function* () {
               yield* bindingStore.removeByNamespace(sourceId);
-              yield* bindingStore.removeSourceMeta(sourceId);
-              yield* bindingStore.removeSourceData(sourceId);
+              yield* bindingStore.removeSource(sourceId);
               yield* ctx.tools.unregisterBySource(sourceId);
               addedSources.delete(sourceId);
             }).pipe(Effect.catchAll(() => Effect.void)),
@@ -435,7 +434,7 @@ export const mcpPlugin = (options?: {
 
           refresh: (sourceId: string) =>
             Effect.gen(function* () {
-              const sd = yield* bindingStore.getSourceData(sourceId);
+              const sd = yield* bindingStore.getSourceConfig(sourceId);
               if (!sd || !addedSources.has(sourceId)) return;
 
               const ci = yield* resolveConnectorInput(sd).pipe(
@@ -575,11 +574,11 @@ export const mcpPlugin = (options?: {
 
             const sourceName =
               manifest.server?.name ?? config.name ?? namespace;
-            yield* bindingStore.putSourceMeta({
+            yield* bindingStore.putSource({
               namespace,
               name: sourceName,
+              config: sd,
             });
-            yield* bindingStore.putSourceData(namespace, sd);
 
             addedSources.set(
               namespace,
@@ -597,14 +596,13 @@ export const mcpPlugin = (options?: {
           Effect.gen(function* () {
             const ids = yield* bindingStore.removeByNamespace(namespace);
             if (ids.length > 0) yield* ctx.tools.unregister(ids);
-            yield* bindingStore.removeSourceMeta(namespace);
-            yield* bindingStore.removeSourceData(namespace);
+            yield* bindingStore.removeSource(namespace);
             addedSources.delete(namespace);
           });
 
         const refreshSource = (namespace: string) =>
           Effect.gen(function* () {
-            const sd = yield* bindingStore.getSourceData(namespace);
+            const sd = yield* bindingStore.getSourceConfig(namespace);
             if (!sd)
               return yield* Effect.fail(
                 new Error(

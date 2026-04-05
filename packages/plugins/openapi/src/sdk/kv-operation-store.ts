@@ -1,17 +1,17 @@
 // ---------------------------------------------------------------------------
 // KV-backed OpenApiOperationStore
 //
-// Uses two separate KV namespaces — one for bindings, one for source meta.
+// Uses two KV namespaces — one for bindings, one for sources (meta + config).
 // ---------------------------------------------------------------------------
 
 import { Effect, Schema } from "effect";
 import { scopeKv, makeInMemoryScopedKv, type Kv, type ToolId, type ScopedKv } from "@executor/sdk";
 
-import type { OpenApiOperationStore, SourceMeta } from "./operation-store";
-import { OperationBinding, InvocationConfig } from "./types";
+import type { OpenApiOperationStore, StoredSource } from "./operation-store";
+import { OperationBinding, InvocationConfig, HeaderValue } from "./types";
 
 // ---------------------------------------------------------------------------
-// Stored entry schema
+// Stored schemas
 // ---------------------------------------------------------------------------
 
 class StoredEntry extends Schema.Class<StoredEntry>("StoredEntry")({
@@ -23,13 +23,28 @@ class StoredEntry extends Schema.Class<StoredEntry>("StoredEntry")({
 const encodeEntry = Schema.encodeSync(Schema.parseJson(StoredEntry));
 const decodeEntry = Schema.decodeUnknownSync(Schema.parseJson(StoredEntry));
 
+const StoredSourceSchema = Schema.Struct({
+  namespace: Schema.String,
+  name: Schema.String,
+  config: Schema.Struct({
+    spec: Schema.String,
+    baseUrl: Schema.optional(Schema.String),
+    namespace: Schema.optional(Schema.String),
+    headers: Schema.optional(
+      Schema.Record({ key: Schema.String, value: HeaderValue }),
+    ),
+  }),
+});
+const encodeSource = Schema.encodeSync(Schema.parseJson(StoredSourceSchema));
+const decodeSource = Schema.decodeUnknownSync(Schema.parseJson(StoredSourceSchema));
+
 // ---------------------------------------------------------------------------
-// Implementation — separate KV for bindings vs source meta
+// Implementation
 // ---------------------------------------------------------------------------
 
 const makeStore = (
   bindings: ScopedKv,
-  meta: ScopedKv,
+  sources: ScopedKv,
 ): OpenApiOperationStore => ({
   get: (toolId) =>
     Effect.gen(function* () {
@@ -72,15 +87,16 @@ const makeStore = (
       return ids;
     }),
 
-  putSourceMeta: (m) => meta.set(m.namespace, JSON.stringify(m)),
+  putSource: (source) =>
+    sources.set(source.namespace, encodeSource(source)),
 
-  removeSourceMeta: (namespace) =>
-    meta.delete(namespace).pipe(Effect.asVoid),
+  removeSource: (namespace) =>
+    sources.delete(namespace).pipe(Effect.asVoid),
 
-  listSourceMeta: () =>
+  listSources: () =>
     Effect.gen(function* () {
-      const entries = yield* meta.list();
-      return entries.map((e) => JSON.parse(e.value) as SourceMeta);
+      const entries = yield* sources.list();
+      return entries.map((e) => decodeSource(e.value) as StoredSource);
     }),
 });
 
@@ -98,4 +114,7 @@ export const makeKvOperationStore = (
   );
 
 export const makeInMemoryOperationStore = (): OpenApiOperationStore =>
-  makeStore(makeInMemoryScopedKv(), makeInMemoryScopedKv());
+  makeStore(
+    makeInMemoryScopedKv(),
+    makeInMemoryScopedKv(),
+  );

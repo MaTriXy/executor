@@ -1,15 +1,23 @@
 import type { Effect } from "effect";
 import type { ToolId } from "@executor/sdk";
 
-import type { OperationBinding, InvocationConfig } from "./types";
+import type { OperationBinding, InvocationConfig, HeaderValue } from "./types";
 
 // ---------------------------------------------------------------------------
 // Operation store — plugin's own storage for invocation data
 // ---------------------------------------------------------------------------
 
-export interface SourceMeta {
+export interface SourceConfig {
+  readonly spec: string;
+  readonly baseUrl?: string;
+  readonly namespace?: string;
+  readonly headers?: Record<string, HeaderValue>;
+}
+
+export interface StoredSource {
   readonly namespace: string;
   readonly name: string;
+  readonly config: SourceConfig;
 }
 
 export interface OpenApiOperationStore {
@@ -30,9 +38,9 @@ export interface OpenApiOperationStore {
 
   readonly removeByNamespace: (namespace: string) => Effect.Effect<readonly ToolId[]>;
 
-  readonly putSourceMeta: (meta: SourceMeta) => Effect.Effect<void>;
+  readonly putSource: (source: StoredSource) => Effect.Effect<void>;
 
-  readonly removeSourceMeta: (namespace: string) => Effect.Effect<void>;
+  readonly removeSource: (namespace: string) => Effect.Effect<void>;
 
-  readonly listSourceMeta: () => Effect.Effect<readonly SourceMeta[]>;
+  readonly listSources: () => Effect.Effect<readonly StoredSource[]>;
 }

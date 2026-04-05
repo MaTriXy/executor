@@ -212,13 +212,13 @@ export const graphqlPlugin = (options?: {
           kind: "graphql",
 
           list: () =>
-            operationStore.listSourceMeta().pipe(
+            operationStore.listSources().pipe(
               Effect.map((metas) =>
                 metas.map(
-                  (meta) =>
+                  (s) =>
                     new Source({
-                      id: meta.namespace,
-                      name: meta.name,
+                      id: s.namespace,
+                      name: s.name,
                       kind: "graphql",
                       runtime: false,
                       canRemove: true,
@@ -231,7 +231,7 @@ export const graphqlPlugin = (options?: {
           remove: (sourceId: string) =>
             Effect.gen(function* () {
               yield* operationStore.removeByNamespace(sourceId);
-              yield* operationStore.removeSourceMeta(sourceId);
+              yield* operationStore.removeSource(sourceId);
               yield* ctx.tools.unregisterBySource(sourceId);
             }),
 
@@ -358,9 +358,15 @@ export const graphqlPlugin = (options?: {
 
             yield* ctx.tools.register(registrations);
 
-            yield* operationStore.putSourceMeta({
+            yield* operationStore.putSource({
               namespace,
               name: namespace,
+              config: {
+                endpoint: config.endpoint,
+                introspectionJson: config.introspectionJson,
+                namespace: config.namespace,
+                headers: config.headers,
+              },
             });
 
             return { sourceId: namespace, toolCount: registrations.length };
@@ -407,7 +413,7 @@ export const graphqlPlugin = (options?: {
                 if (toolIds.length > 0) {
                   yield* ctx.tools.unregister(toolIds);
                 }
-                yield* operationStore.removeSourceMeta(namespace);
+                yield* operationStore.removeSource(namespace);
               }),
           },
 
