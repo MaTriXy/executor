@@ -32,28 +32,20 @@ const supportsManagedElicitation = (server: McpServer): boolean => {
   const capabilities = server.server.getClientCapabilities();
   if (capabilities === undefined || !capabilities.elicitation) return false;
   const elicitation = capabilities.elicitation as Record<string, unknown>;
-  // The MCP SDK requires `elicitation.form` for form-based elicitation.
-  // An empty `elicitation: {}` is auto-upgraded to `{ form: {} }` by the SDK's
-  // schema preprocess, but we guard explicitly in case that doesn't apply.
-  return Boolean(elicitation.form);
+  return Boolean(elicitation.form) && Boolean(elicitation.url);
 };
 
-const elicitationRequestToSchema: (
-  request: ElicitationRequest,
-) => { message: string; requestedSchema: { readonly [key: string]: unknown } } =
+type ElicitInputParams =
+  | { mode?: "form"; message: string; requestedSchema: { readonly [key: string]: unknown } }
+  | { mode: "url"; message: string; url: string; elicitationId: string };
+
+const elicitationRequestToParams: (request: ElicitationRequest) => ElicitInputParams =
   Match.type<ElicitationRequest>().pipe(
     Match.tag("UrlElicitation", (req) => ({
+      mode: "url" as const,
       message: req.message,
-      requestedSchema: {
-        type: "object",
-        properties: {
-          _url_hint: {
-            type: "string",
-            description: `Please open this URL: ${req.url}`,
-            default: req.url,
-          },
-        },
-      },
+      url: req.url,
+      elicitationId: req.elicitationId,
     })),
     Match.tag("FormElicitation", (req) => ({
       message: req.message,
@@ -70,12 +62,12 @@ const elicitationRequestToSchema: (
 
 const makeMcpElicitationHandler = (server: McpServer): ElicitationHandler =>
   (ctx: ElicitationContext): Effect.Effect<typeof ElicitationResponse.Type> => {
-    const { message, requestedSchema } = elicitationRequestToSchema(ctx.request);
+    const params = elicitationRequestToParams(ctx.request);
 
     return Effect.promise(async (): Promise<typeof ElicitationResponse.Type> => {
       try {
         const response = await server.server.elicitInput(
-          { message, requestedSchema } as Parameters<typeof server.server.elicitInput>[0],
+          params as Parameters<typeof server.server.elicitInput>[0],
         );
 
         return {

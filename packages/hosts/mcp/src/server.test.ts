@@ -82,7 +82,7 @@ describe("MCP host server — client with elicitation", () => {
     });
 
     const { client, close } = await connect(engine, {
-      elicitation: { form: {} },
+      elicitation: { form: {}, url: {} },
     });
 
     try {
@@ -122,7 +122,7 @@ describe("MCP host server — client with elicitation", () => {
     });
 
     const { client, close } = await connect(engine, {
-      elicitation: { form: {} },
+      elicitation: { form: {}, url: {} },
     });
 
     // Register a client-side handler that auto-accepts
@@ -160,7 +160,7 @@ describe("MCP host server — client with elicitation", () => {
     });
 
     const { client, close } = await connect(engine, {
-      elicitation: { form: {} },
+      elicitation: { form: {}, url: {} },
     });
 
     client.setRequestHandler(ElicitRequestSchema, async () => ({
@@ -201,7 +201,7 @@ describe("MCP host server — client with elicitation", () => {
     });
 
     const { client, close } = await connect(engine, {
-      elicitation: { form: {} },
+      elicitation: { form: {}, url: {} },
     });
 
     client.setRequestHandler(ElicitRequestSchema, async (request) => {
@@ -226,9 +226,8 @@ describe("MCP host server — client with elicitation", () => {
     }
   });
 
-  it("UrlElicitation is converted to a form with _url_hint property", async () => {
-    let receivedMessage: string | undefined;
-    let receivedSchema: Record<string, unknown> | undefined;
+  it("UrlElicitation is sent as native mode:url elicitation", async () => {
+    let receivedParams: Record<string, unknown> | undefined;
 
     const engine = makeStubEngine({
       execute: async (_code, { onElicitation }) => {
@@ -248,15 +247,11 @@ describe("MCP host server — client with elicitation", () => {
     });
 
     const { client, close } = await connect(engine, {
-      elicitation: { form: {} },
+      elicitation: { form: {}, url: {} },
     });
 
     client.setRequestHandler(ElicitRequestSchema, async (request) => {
-      receivedMessage = request.params.message;
-      const params = request.params;
-      if ("requestedSchema" in params) {
-        receivedSchema = params.requestedSchema as Record<string, unknown>;
-      }
+      receivedParams = request.params as Record<string, unknown>;
       return { action: "accept" as const, content: {} };
     });
 
@@ -265,18 +260,10 @@ describe("MCP host server — client with elicitation", () => {
         name: "execute",
         arguments: { code: "oauth" },
       });
-      expect(receivedMessage).toBe("Please authenticate");
-      expect(receivedSchema).toEqual({
-        type: "object",
-        properties: {
-          _url_hint: {
-            type: "string",
-            description:
-              "Please open this URL: https://example.com/oauth",
-            default: "https://example.com/oauth",
-          },
-        },
-      });
+      expect(receivedParams?.mode).toBe("url");
+      expect(receivedParams?.message).toBe("Please authenticate");
+      expect(receivedParams?.url).toBe("https://example.com/oauth");
+      expect(receivedParams?.elicitationId).toBe("elic-1");
     } finally {
       await close();
     }
@@ -292,7 +279,7 @@ describe("MCP host server — client with elicitation", () => {
     });
 
     const { client, close } = await connect(engine, {
-      elicitation: { form: {} },
+      elicitation: { form: {}, url: {} },
     });
 
     try {
@@ -311,7 +298,7 @@ describe("MCP host server — client with elicitation", () => {
   it("resume tool is hidden when client supports elicitation", async () => {
     const engine = makeStubEngine({});
     const { client, close } = await connect(engine, {
-      elicitation: { form: {} },
+      elicitation: { form: {}, url: {} },
     });
 
     try {
@@ -319,6 +306,51 @@ describe("MCP host server — client with elicitation", () => {
       const names = tools.map((t) => t.name);
       expect(names).toContain("execute");
       expect(names).not.toContain("resume");
+    } finally {
+      await close();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — client with form-only elicitation (falls back to pause/resume)
+// ---------------------------------------------------------------------------
+
+describe("MCP host server — client with form-only elicitation", () => {
+  it("resume tool is visible when client only supports form elicitation", async () => {
+    const engine = makeStubEngine({});
+    const { client, close } = await connect(engine, {
+      elicitation: { form: {} },
+    });
+
+    try {
+      const { tools } = await client.listTools();
+      const names = tools.map((t) => t.name);
+      expect(names).toContain("execute");
+      expect(names).toContain("resume");
+    } finally {
+      await close();
+    }
+  });
+
+  it("uses pause/resume path when client only supports form", async () => {
+    const engine = makeStubEngine({
+      executeWithPause: async () => ({
+        status: "completed",
+        result: { result: "form-only-path" },
+      }),
+    });
+
+    const { client, close } = await connect(engine, {
+      elicitation: { form: {} },
+    });
+
+    try {
+      const result = await client.callTool({
+        name: "execute",
+        arguments: { code: "test" },
+      });
+      expect(result.content).toEqual([{ type: "text", text: "form-only-path" }]);
     } finally {
       await close();
     }
@@ -586,7 +618,7 @@ describe("MCP host server — elicitation error handling", () => {
     });
 
     const { client, close } = await connect(engine, {
-      elicitation: { form: {} },
+      elicitation: { form: {}, url: {} },
     });
 
     // Client throws when it receives the elicitation — server should catch
@@ -717,7 +749,7 @@ describe("MCP host server — multiple elicitations", () => {
     });
 
     const { client, close } = await connect(engine, {
-      elicitation: { form: {} },
+      elicitation: { form: {}, url: {} },
     });
 
     let callCount = 0;
