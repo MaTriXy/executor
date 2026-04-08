@@ -32,156 +32,200 @@ describe("makeEnv", () => {
 });
 
 describe("createEnv", () => {
-  it("validates server, client, and shared values", () => {
-    const env = createEnv({
-      server: {
-        PORT: Env.number("PORT"),
-      },
-      shared: {
+  it("validates values and supports separate shared/web/server definitions", () => {
+    const shared = createEnv(
+      {
         NODE_ENV: Env.literal("NODE_ENV", "development", "production", "test"),
       },
-      clientPrefix: "PUBLIC_",
-      client: {
+      {
+        runtimeEnv: {
+          NODE_ENV: "development",
+        },
+      },
+    );
+
+    const web = createEnv(
+      {
         PUBLIC_API_URL: Env.url("PUBLIC_API_URL"),
       },
-      runtimeEnv: {
-        PORT: "3000",
-        NODE_ENV: "development",
-        PUBLIC_API_URL: "https://api.example.com",
+      {
+        prefix: "PUBLIC_",
+        runtimeEnv: {
+          PUBLIC_API_URL: "https://api.example.com",
+        },
       },
-    });
+    );
 
-    expect(env.PORT).toBe(3000);
-    expect(env.NODE_ENV).toBe("development");
-    expect(env.PUBLIC_API_URL).toBe("https://api.example.com");
+    const server = createEnv(
+      {
+        PORT: Env.number("PORT"),
+      },
+      {
+        extends: [shared],
+        runtimeEnv: {
+          PORT: "3000",
+        },
+      },
+    );
+
+    expect(server.PORT).toBe(3000);
+    expect(server.NODE_ENV).toBe("development");
+    expect(web.PUBLIC_API_URL).toBe("https://api.example.com");
   });
 
   it("throws with the default validation handler", () => {
     expect(() =>
-      createEnv({
-        server: {
+      createEnv(
+        {
           PORT: Env.number("PORT"),
         },
-        runtimeEnv: {
-          PORT: "not-a-number",
+        {
+          runtimeEnv: {
+            PORT: "not-a-number",
+          },
         },
-      }),
+      ),
     ).toThrow("Invalid environment variables");
   });
 
   it("supports custom validation handlers", () => {
     expect(() =>
-      createEnv({
-        server: {
+      createEnv(
+        {
           PORT: Env.number("PORT"),
         },
-        runtimeEnv: {
-          PORT: "nope",
+        {
+          runtimeEnv: {
+            PORT: "nope",
+          },
+          onValidationError: (issues) => {
+            const portIssue = issues.find((issue) => issue.path.includes("PORT"));
+            throw new Error(`PORT invalid: ${portIssue?.message ?? "unknown"}`);
+          },
         },
-        onValidationError: (issues) => {
-          const portIssue = issues.find((issue) => issue.path.includes("PORT"));
-          throw new Error(`PORT invalid: ${portIssue?.message ?? "unknown"}`);
-        },
-      }),
+      ),
     ).toThrow("PORT invalid:");
   });
 
-  it("prevents server variable access on the client", () => {
-    const env = createEnv({
-      server: {
+  it("prevents non-prefixed variable access on the client", () => {
+    const secret = createEnv(
+      {
         SECRET: Env.string("SECRET"),
       },
-      shared: {
-        NODE_ENV: Env.literal("NODE_ENV", "development", "production", "test"),
+      {
+        runtimeEnv: {
+          SECRET: "top-secret",
+        },
       },
-      clientPrefix: "PUBLIC_",
-      client: {
+    );
+
+    const env = createEnv(
+      {
         PUBLIC_SITE_NAME: Env.string("PUBLIC_SITE_NAME"),
       },
-      runtimeEnv: {
-        SECRET: "top-secret",
-        NODE_ENV: "development",
-        PUBLIC_SITE_NAME: "executor",
+      {
+        prefix: "PUBLIC_",
+        extends: [secret],
+        runtimeEnv: {
+          PUBLIC_SITE_NAME: "executor",
+        },
+        isServer: false,
       },
-      isServer: false,
-    });
+    );
 
     expect(() => env.SECRET).toThrow(
       "❌ Attempted to access a server-side environment variable on the client",
     );
     expect(env.PUBLIC_SITE_NAME).toBe("executor");
-    expect(env.NODE_ENV).toBe("development");
   });
 
   it("supports custom invalid-access handlers", () => {
-    const env = createEnv({
-      server: {
+    const secret = createEnv(
+      {
         SECRET: Env.string("SECRET"),
       },
-      clientPrefix: "PUBLIC_",
-      client: {
+      {
+        runtimeEnv: {
+          SECRET: "top-secret",
+        },
+      },
+    );
+
+    const env = createEnv(
+      {
         PUBLIC_SITE_NAME: Env.string("PUBLIC_SITE_NAME"),
       },
-      runtimeEnv: {
-        SECRET: "top-secret",
-        PUBLIC_SITE_NAME: "executor",
+      {
+        prefix: "PUBLIC_",
+        extends: [secret],
+        runtimeEnv: {
+          PUBLIC_SITE_NAME: "executor",
+        },
+        isServer: false,
+        onInvalidAccess: (variable) => {
+          throw new Error(`Blocked ${variable}`);
+        },
       },
-      isServer: false,
-      onInvalidAccess: (variable) => {
-        throw new Error(`Blocked ${variable}`);
-      },
-    });
+    );
 
     expect(() => env.SECRET).toThrow("Blocked SECRET");
   });
 
   it("treats empty strings as undefined when requested", () => {
-    const withoutOption = createEnv({
-      server: {
+    const withoutOption = createEnv(
+      {
         HOST: Env.stringOr("HOST", "localhost"),
       },
-      runtimeEnv: {
-        HOST: "",
+      {
+        runtimeEnv: {
+          HOST: "",
+        },
       },
-    });
+    );
 
-    const withOption = createEnv({
-      server: {
+    const withOption = createEnv(
+      {
         HOST: Env.stringOr("HOST", "localhost"),
       },
-      runtimeEnv: {
-        HOST: "",
+      {
+        runtimeEnv: {
+          HOST: "",
+        },
+        emptyStringAsUndefined: true,
       },
-      emptyStringAsUndefined: true,
-    });
+    );
 
     expect(withoutOption.HOST).toBe("");
     expect(withOption.HOST).toBe("localhost");
   });
 
   it("extends other env objects and allows local overrides", () => {
-    const preset = createEnv({
-      server: {
+    const preset = createEnv(
+      {
         PRESET_ENV: Env.literal("PRESET_ENV", "preset", "overridden"),
         PRESET_SECRET: Env.string("PRESET_SECRET"),
       },
-      runtimeEnv: {
-        PRESET_ENV: "preset",
-        PRESET_SECRET: "preset-secret",
+      {
+        runtimeEnv: {
+          PRESET_ENV: "preset",
+          PRESET_SECRET: "preset-secret",
+        },
       },
-    });
+    );
 
-    const env = createEnv({
-      server: {
+    const env = createEnv(
+      {
         PRESET_ENV: Env.literal("PRESET_ENV", "overridden"),
         APP_ENV: Env.string("APP_ENV"),
       },
-      extends: [preset],
-      runtimeEnv: {
-        PRESET_ENV: "overridden",
-        APP_ENV: "local",
+      {
+        extends: [preset],
+        runtimeEnv: {
+          PRESET_ENV: "overridden",
+          APP_ENV: "local",
+        },
       },
-    });
+    );
 
     expect(env.PRESET_ENV).toBe("overridden");
     expect(env.PRESET_SECRET).toBe("preset-secret");
@@ -189,78 +233,71 @@ describe("createEnv", () => {
   });
 
   it("supports skipping validation", () => {
-    const env = createEnv({
-      server: {
+    const env = createEnv(
+      {
         PORT: Env.number("PORT"),
       },
-      runtimeEnv: {
-        PORT: "not-a-number",
+      {
+        runtimeEnv: {
+          PORT: "not-a-number",
+        },
+        skipValidation: true,
       },
-      skipValidation: true,
-    });
+    );
 
     expect(env.PORT).toBe("not-a-number");
   });
 
   it("supports createFinalConfig transformations", () => {
-    const env = createEnv({
-      server: {
+    const env = createEnv(
+      {
         HOST: Env.string("HOST"),
         PORT: Env.number("PORT"),
       },
-      runtimeEnv: {
-        HOST: "localhost",
-        PORT: "4000",
+      {
+        runtimeEnv: {
+          HOST: "localhost",
+          PORT: "4000",
+        },
+        createFinalConfig: (shape) =>
+          Config.all(shape).pipe(
+            Config.map((value) => ({
+              ...value,
+              BASE_URL: `http://${value.HOST}:${value.PORT}`,
+            })),
+          ),
       },
-      createFinalConfig: (shape) =>
-        Config.all(shape).pipe(
-          Config.map((value) => ({
-            ...value,
-            BASE_URL: `http://${value.HOST}:${value.PORT}`,
-          })),
-        ),
-    });
+    );
 
     expect(env.HOST).toBe("localhost");
     expect(env.PORT).toBe(4000);
     expect(env.BASE_URL).toBe("http://localhost:4000");
   });
 
-  it("enforces prefix and runtimeEnvStrict at type level", () => {
-    createEnv({
-      clientPrefix: "PUBLIC_",
-      server: {
-        SECRET: Env.string("SECRET"),
-      },
-      client: {
+  it("enforces prefix at type level", () => {
+    createEnv(
+      {
         PUBLIC_SITE_NAME: Env.string("PUBLIC_SITE_NAME"),
       },
-      runtimeEnvStrict: {
-        SECRET: "top-secret",
-        PUBLIC_SITE_NAME: "executor",
+      {
+        prefix: "PUBLIC_",
+        runtimeEnv: {
+          PUBLIC_SITE_NAME: "executor",
+        },
       },
-    });
+    );
 
     if (false) {
-      createEnv({
-        clientPrefix: "PUBLIC_",
-        server: {
-          // @ts-expect-error Server keys should not use the client prefix
-          PUBLIC_SECRET: Env.string("PUBLIC_SECRET"),
-        },
-        client: {},
-        runtimeEnvStrict: {},
-      });
-
-      createEnv({
-        clientPrefix: "PUBLIC_",
-        server: {},
-        client: {
-          // @ts-expect-error Client keys must include the client prefix
+      createEnv(
+        {
+          // @ts-expect-error Keys must include the PUBLIC_ prefix
           SITE_NAME: Env.string("SITE_NAME"),
         },
-        runtimeEnvStrict: {},
-      });
+        {
+          prefix: "PUBLIC_",
+          runtimeEnv: {},
+        },
+      );
     }
 
     expect(true).toBe(true);

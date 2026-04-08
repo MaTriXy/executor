@@ -108,8 +108,6 @@ type PossiblyUndefinedKeys<T> = {
 type UndefinedOptional<T> = Partial<Pick<T, PossiblyUndefinedKeys<T>>> &
   Omit<T, PossiblyUndefinedKeys<T>>;
 
-type Impossible<T extends object> = Partial<Record<keyof T, never>>;
-
 type Mutable<T> = T extends Readonly<infer U> ? U : T;
 
 type Reduce<TArr extends readonly Record<string, unknown>[], TAcc = object> =
@@ -160,12 +158,28 @@ export const flattenConfigError = (
   return issues;
 };
 
-export interface BaseOptions<
-  TShared extends ConfigShape,
+type EnforcePrefixedKeys<
+  TPrefix extends string | undefined,
+  TShape extends ConfigShape,
+> = {
+  [TKey in keyof TShape]: TPrefix extends undefined
+    ? TShape[TKey]
+    : TPrefix extends ""
+      ? TShape[TKey]
+      : TKey extends `${TPrefix}${string}`
+        ? TShape[TKey]
+        : ErrorMessage<`${TKey extends string ? TKey : never} is not prefixed with ${TPrefix}.`>;
+};
+
+export interface CreateEnvOptions<
+  TPrefix extends string | undefined,
+  TShape extends ConfigShape,
   TExtends extends readonly Record<string, unknown>[],
+  TFinalConfig extends Config.Config<Record<string, unknown>>,
 > {
+  prefix?: TPrefix;
   isServer?: boolean;
-  shared?: TShared;
+  runtimeEnv?: RuntimeEnv;
   extends?: TExtends;
   onValidationError?: (
     issues: ReadonlyArray<ValidationIssue>,
@@ -174,121 +188,12 @@ export interface BaseOptions<
   onInvalidAccess?: (variable: string) => never;
   skipValidation?: boolean;
   emptyStringAsUndefined?: boolean;
+  createFinalConfig?: (shape: TShape, isServer: boolean) => TFinalConfig;
 }
 
-export interface LooseOptions<
-  TShared extends ConfigShape,
-  TExtends extends readonly Record<string, unknown>[],
-> extends BaseOptions<TShared, TExtends> {
-  runtimeEnvStrict?: never;
-  runtimeEnv: RuntimeEnv;
-}
-
-export interface StrictOptions<
-  TPrefix extends string | undefined,
-  TServer extends ConfigShape,
-  TClient extends ConfigShape,
-  TShared extends ConfigShape,
-  TExtends extends readonly Record<string, unknown>[],
-> extends BaseOptions<TShared, TExtends> {
-  runtimeEnvStrict: Record<
-    | {
-        [TKey in keyof TClient]: TPrefix extends undefined
-          ? never
-          : TKey extends `${TPrefix}${string}`
-            ? TKey
-            : never;
-      }[keyof TClient]
-    | {
-        [TKey in keyof TServer]: TPrefix extends undefined
-          ? TKey
-          : TKey extends `${TPrefix}${string}`
-            ? never
-            : TKey;
-      }[keyof TServer]
-    | {
-        [TKey in keyof TShared]: TKey extends string ? TKey : never;
-      }[keyof TShared],
-    RuntimeEnvValue
-  >;
-  runtimeEnv?: never;
-}
-
-export interface ClientOptions<
-  TPrefix extends string | undefined,
-  TClient extends ConfigShape,
-> {
-  clientPrefix: TPrefix;
-  client: Partial<{
-    [TKey in keyof TClient]: TKey extends `${TPrefix}${string}`
-      ? TClient[TKey]
-      : ErrorMessage<`${TKey extends string ? TKey : never} is not prefixed with ${TPrefix}.`>;
-  }>;
-}
-
-export interface ServerOptions<
-  TPrefix extends string | undefined,
-  TServer extends ConfigShape,
-> {
-  server: Partial<{
-    [TKey in keyof TServer]: TPrefix extends undefined
-      ? TServer[TKey]
-      : TPrefix extends ""
-        ? TServer[TKey]
-        : TKey extends `${TPrefix}${string}`
-          ? ErrorMessage<`${TKey extends `${TPrefix}${string}`
-              ? TKey
-              : never} should not prefixed with ${TPrefix}.`>
-          : TServer[TKey];
-  }>;
-}
-
-export interface CreateConfigOptions<
-  TServer extends ConfigShape,
-  TClient extends ConfigShape,
-  TShared extends ConfigShape,
-  TFinalConfig extends Config.Config<Record<string, unknown>>,
-> {
-  createFinalConfig?: (
-    shape: TServer & TClient & TShared,
-    isServer: boolean,
-  ) => TFinalConfig;
-}
-
-export type ServerClientOptions<
-  TPrefix extends string | undefined,
-  TServer extends ConfigShape,
-  TClient extends ConfigShape,
-> =
-  | (ClientOptions<TPrefix, TClient> & ServerOptions<TPrefix, TServer>)
-  | (ServerOptions<TPrefix, TServer> & Impossible<ClientOptions<never, never>>)
-  | (ClientOptions<TPrefix, TClient> & Impossible<ServerOptions<never, never>>);
-
-export type EnvOptions<
-  TPrefix extends string | undefined,
-  TServer extends ConfigShape,
-  TClient extends ConfigShape,
-  TShared extends ConfigShape,
-  TExtends extends readonly Record<string, unknown>[],
-  TFinalConfig extends Config.Config<Record<string, unknown>>,
-> = (
-  | (LooseOptions<TShared, TExtends> & ServerClientOptions<TPrefix, TServer, TClient>)
-  | (StrictOptions<TPrefix, TServer, TClient, TShared, TExtends> &
-      ServerClientOptions<TPrefix, TServer, TClient>)
-) &
-  CreateConfigOptions<TServer, TClient, TShared, TFinalConfig>;
-
-type TPrefixFormat = string | undefined;
-type TServerFormat = ConfigShape;
-type TClientFormat = ConfigShape;
-type TSharedFormat = ConfigShape;
-type TExtendsFormat = readonly Record<string, unknown>[];
-
-export type DefaultCombinedConfig<
-  TServer extends TServerFormat,
-  TClient extends TClientFormat,
-  TShared extends TSharedFormat,
-> = Config.Config<UndefinedOptional<InferConfigShape<TServer & TClient & TShared>>>;
+export type DefaultCombinedConfig<TShape extends ConfigShape> = Config.Config<
+  UndefinedOptional<InferConfigShape<TShape>>
+>;
 
 type InferEnvOutput<TConfig extends Config.Config<unknown>> =
   Config.Config.Success<TConfig> extends Record<string, unknown>
@@ -297,7 +202,7 @@ type InferEnvOutput<TConfig extends Config.Config<unknown>> =
 
 export type CreateEnv<
   TFinalConfig extends Config.Config<Record<string, unknown>>,
-  TExtends extends TExtendsFormat,
+  TExtends extends readonly Record<string, unknown>[],
 > = Readonly<Simplify<Reduce<[InferEnvOutput<TFinalConfig>, ...TExtends]>>>;
 
 export const getDefaultRuntimeEnv = (): RuntimeEnv => {
@@ -341,23 +246,20 @@ const mergeExtended = (extendsEnvs: ReadonlyArray<Record<string, unknown>>): Rec
   extendsEnvs.reduce<Record<string, unknown>>((acc, current) => Object.assign(acc, current), {});
 
 export function createEnv<
-  TPrefix extends TPrefixFormat,
-  const TServer extends TServerFormat = Record<string, never>,
-  const TClient extends TClientFormat = Record<string, never>,
-  const TShared extends TSharedFormat = Record<string, never>,
-  const TExtends extends TExtendsFormat = [],
-  TFinalConfig extends Config.Config<Record<string, unknown>> = DefaultCombinedConfig<
-    TServer,
-    TClient,
-    TShared
-  >,
+  TPrefix extends string | undefined = undefined,
+  const TShape extends ConfigShape = Record<string, never>,
+  const TExtends extends readonly Record<string, unknown>[] = [],
+  TFinalConfig extends Config.Config<Record<string, unknown>> = DefaultCombinedConfig<TShape>,
 >(
-  opts: EnvOptions<TPrefix, TServer, TClient, TShared, TExtends, TFinalConfig>,
+  shape: Partial<EnforcePrefixedKeys<TPrefix, TShape>>,
+  options?: CreateEnvOptions<TPrefix, TShape, TExtends, TFinalConfig>,
 ): CreateEnv<TFinalConfig, TExtends> {
-  const runtimeEnv = (opts.runtimeEnvStrict ?? opts.runtimeEnv ?? getDefaultRuntimeEnv()) as RuntimeEnv;
+  const opts = options ?? {};
+
+  const normalizedShape = (typeof shape === "object" ? shape : {}) as TShape;
 
   const normalizedRuntimeEnv = normalizeRuntimeEnv(
-    runtimeEnv,
+    opts.runtimeEnv ?? getDefaultRuntimeEnv(),
     opts.emptyStringAsUndefined ?? false,
   );
 
@@ -367,27 +269,11 @@ export function createEnv<
     return Object.assign(extendedEnv, normalizedRuntimeEnv) as CreateEnv<TFinalConfig, TExtends>;
   }
 
-  const client = (typeof opts.client === "object" ? opts.client : {}) as TClient;
-  const server = (typeof opts.server === "object" ? opts.server : {}) as TServer;
-  const shared = (typeof opts.shared === "object" ? opts.shared : {}) as TShared;
   const isServer = opts.isServer ?? (!("window" in globalThis) || "Deno" in globalThis);
 
-  const finalShape = (
-    isServer
-      ? {
-          ...server,
-          ...shared,
-          ...client,
-        }
-      : {
-          ...client,
-          ...shared,
-        }
-  ) as TServer & TClient & TShared;
-
   const finalConfig =
-    opts.createFinalConfig?.(finalShape, isServer) ??
-    (Config.all(finalShape) as unknown as TFinalConfig);
+    opts.createFinalConfig?.(normalizedShape, isServer) ??
+    (Config.all(normalizedShape) as unknown as TFinalConfig);
 
   const parsed = Effect.runSync(
     Effect.withConfigProvider(ConfigProvider.fromMap(toRuntimeMap(normalizedRuntimeEnv)))(
@@ -413,15 +299,7 @@ export function createEnv<
     return onValidationError(issues, parsed.left);
   }
 
-  const isServerAccess = (prop: string) => {
-    if (!opts.clientPrefix) {
-      return true;
-    }
-    return !prop.startsWith(opts.clientPrefix) && !(prop in shared);
-  };
-
-  const isValidServerAccess = (prop: string) => isServer || !isServerAccess(prop);
-
+  const prefix = opts.prefix;
   const ignoreProp = (prop: string) => prop === "__esModule" || prop === "$$typeof";
 
   const fullEnv = Object.assign(extendedEnv, parsed.right);
@@ -434,7 +312,7 @@ export function createEnv<
       if (ignoreProp(prop)) {
         return undefined;
       }
-      if (!isValidServerAccess(prop)) {
+      if (!isServer && prefix && prefix !== "" && !prop.startsWith(prefix)) {
         return onInvalidAccess(prop);
       }
       return Reflect.get(target, prop);

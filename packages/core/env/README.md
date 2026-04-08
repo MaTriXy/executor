@@ -6,10 +6,9 @@ Vendored environment tooling based on [`rayhanadev/effect-env`](https://github.c
 
 - `Env` helper constructors for Effect `Config` values
 - `makeEnv` for Effect Context/Layer integration
-- `createEnv` for t3-style runtime env assembly with:
-  - `server` / `client` / `shared` schema split
-  - `clientPrefix` access controls
-  - `runtimeEnv` or `runtimeEnvStrict`
+- `createEnv(shape, options)` for runtime env assembly with:
+  - an optional `prefix` for client-safe keys
+  - `runtimeEnv`
   - `onValidationError` / `onInvalidAccess`
   - `skipValidation`
   - `emptyStringAsUndefined`
@@ -21,16 +20,33 @@ Vendored environment tooling based on [`rayhanadev/effect-env`](https://github.c
 ```ts
 import { createEnv, Env } from "@executor/env";
 
-export const env = createEnv({
-  server: {
+export const shared = createEnv(
+  {
+    NODE_ENV: Env.literal("NODE_ENV", "development", "test", "production"),
+  },
+  {
+    runtimeEnv: process.env,
+  },
+);
+
+export const web = createEnv(
+  {
+    PUBLIC_API_URL: Env.url("PUBLIC_API_URL"),
+  },
+  {
+    prefix: "PUBLIC_",
+    runtimeEnv: import.meta.env,
+  },
+);
+
+export const server = createEnv(
+  {
     DATABASE_URL: Env.url("DATABASE_URL"),
     PORT: Env.numberOr("PORT", 3000),
   },
-  clientPrefix: "PUBLIC_",
-  client: {
-    PUBLIC_API_URL: Env.url("PUBLIC_API_URL"),
+  {
+    runtimeEnv: process.env,
+    extends: [shared],
   },
-  runtimeEnv: process.env,
-  emptyStringAsUndefined: true,
-});
+);
 ```
