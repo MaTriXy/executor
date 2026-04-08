@@ -29,6 +29,7 @@
     "@executor/react": "1.4.0"
   },
   "changesets": [
+    "late-cameras-open",
     "purple-jokes-rest"
   ]
 }
