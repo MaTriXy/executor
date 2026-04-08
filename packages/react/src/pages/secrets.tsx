@@ -4,7 +4,6 @@ import { secretsAtom, setSecret, removeSecret } from "../api/atoms";
 import type { SecretProviderPlugin } from "../plugins/secret-provider-plugin";
 import { SecretId } from "@executor/sdk";
 import { useScope } from "../hooks/use-scope";
-import { onePasswordSecretProviderPlugin } from "@executor/plugin-onepassword/react";
 import {
   Dialog,
   DialogContent,
@@ -257,18 +256,11 @@ function SecretRow(props: {
 }
 
 // ---------------------------------------------------------------------------
-// Secret provider plugins
-// ---------------------------------------------------------------------------
-
-const secretProviderPlugins: SecretProviderPlugin[] = [
-  onePasswordSecretProviderPlugin,
-];
-
-// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
-export function SecretsPage() {
+export function SecretsPage(props: { secretProviderPlugins: readonly SecretProviderPlugin[] }) {
+  const { secretProviderPlugins } = props;
   const [addOpen, setAddOpen] = useState(false);
   const scopeId = useScope();
   const secrets = useAtomValue(secretsAtom(scopeId));

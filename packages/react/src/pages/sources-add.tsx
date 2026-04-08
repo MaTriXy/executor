@@ -4,21 +4,6 @@ import type { SourcePlugin } from "../plugins/source-plugin";
 import { useAtomRefresh } from "@effect-atom/atom-react";
 import { sourcesAtom } from "../api/atoms";
 import { useScope } from "../hooks/use-scope";
-import { openApiSourcePlugin } from "@executor/plugin-openapi/react";
-import { mcpSourcePlugin } from "@executor/plugin-mcp/react";
-import { googleDiscoverySourcePlugin } from "@executor/plugin-google-discovery/react";
-import { graphqlSourcePlugin } from "@executor/plugin-graphql/react";
-
-// ---------------------------------------------------------------------------
-// Registered source plugins
-// ---------------------------------------------------------------------------
-
-const sourcePlugins: SourcePlugin[] = [
-  openApiSourcePlugin,
-  mcpSourcePlugin,
-  googleDiscoverySourcePlugin,
-  graphqlSourcePlugin,
-];
 
 // ---------------------------------------------------------------------------
 // Page
@@ -28,8 +13,9 @@ export function SourcesAddPage(props: {
   pluginKey: string;
   url?: string;
   preset?: string;
+  sourcePlugins: readonly SourcePlugin[];
 }) {
-  const { pluginKey, url, preset } = props;
+  const { pluginKey, url, preset, sourcePlugins } = props;
   const scopeId = useScope();
   const refreshSources = useAtomRefresh(sourcesAtom(scopeId));
   const navigate = useNavigate();

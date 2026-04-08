@@ -4,22 +4,7 @@ import { Result, useAtomValue, useAtomSet } from "@effect-atom/atom-react";
 import { sourcesAtom, detectSource } from "../api/atoms";
 import { useScope } from "../hooks/use-scope";
 import type { SourcePlugin, SourcePreset } from "../plugins/source-plugin";
-import { openApiSourcePlugin } from "@executor/plugin-openapi/react";
-import { mcpSourcePlugin } from "@executor/plugin-mcp/react";
-import { googleDiscoverySourcePlugin } from "@executor/plugin-google-discovery/react";
-import { graphqlSourcePlugin } from "@executor/plugin-graphql/react";
 import { McpInstallCard } from "../components/mcp-install-card";
-
-// ---------------------------------------------------------------------------
-// Registered source plugins
-// ---------------------------------------------------------------------------
-
-const sourcePlugins: SourcePlugin[] = [
-  openApiSourcePlugin,
-  mcpSourcePlugin,
-  googleDiscoverySourcePlugin,
-  graphqlSourcePlugin,
-];
 
 const KIND_TO_PLUGIN_KEY: Record<string, string> = {
   openapi: "openapi",
@@ -32,7 +17,8 @@ const KIND_TO_PLUGIN_KEY: Record<string, string> = {
 // Page
 // ---------------------------------------------------------------------------
 
-export function SourcesPage() {
+export function SourcesPage(props: { sourcePlugins: readonly SourcePlugin[] }) {
+  const { sourcePlugins } = props;
   const [url, setUrl] = useState("");
   const [detecting, setDetecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
