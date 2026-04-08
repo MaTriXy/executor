@@ -21,6 +21,7 @@ import { homedir } from "node:os";
 // ---------------------------------------------------------------------------
 
 const DEFAULT_PORT = 14788;
+const DEV_SERVER_URL = process.env.EXECUTOR_DEV_URL || "http://executor-local.localhost:1355";
 const SERVER_STARTUP_TIMEOUT_MS = 30_000;
 const SETTINGS_DIR = join(homedir(), ".executor");
 const SETTINGS_PATH = join(SETTINGS_DIR, "desktop-settings.json");
@@ -344,6 +345,17 @@ const loadScope = async (scopePath: string): Promise<void> => {
   if (!mainWindow) return;
 
   mainWindow.setTitle(`Executor — ${basename(scopePath)}`);
+
+  if (isDev) {
+    // In dev mode, the Vite dev server (via portless) handles both UI and API.
+    // Just set the scope env var and load the dev URL.
+    currentScope = scopePath;
+    process.env.EXECUTOR_SCOPE_DIR = scopePath;
+    addRecentScope(settings, scopePath);
+    buildMenu();
+    mainWindow.loadURL(DEV_SERVER_URL);
+    return;
+  }
 
   // Show loading state
   mainWindow.loadURL(`data:text/html,${encodeURIComponent(loadingHTML(scopePath))}`);
