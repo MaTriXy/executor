@@ -5,7 +5,7 @@
 import { Context, Effect, Layer } from "effect";
 import { WorkOS } from "@workos-inc/node";
 import { WorkOSError } from "./errors";
-import { env } from "../env";
+import { server } from "../env";
 
 const COOKIE_NAME = "wos-session";
 
@@ -15,9 +15,9 @@ const COOKIE_NAME = "wos-session";
 
 
 const make = Effect.gen(function* () {
-  const apiKey = env.WORKOS_API_KEY;
-  const clientId = env.WORKOS_CLIENT_ID;
-  const cookiePassword = env.WORKOS_COOKIE_PASSWORD;
+  const apiKey = server.WORKOS_API_KEY;
+  const clientId = server.WORKOS_CLIENT_ID;
+  const cookiePassword = server.WORKOS_COOKIE_PASSWORD;
 
   if (!cookiePassword || cookiePassword.length < 32) {
     return yield* Effect.die(new Error("WORKOS_COOKIE_PASSWORD must be at least 32 characters"));

@@ -31,7 +31,7 @@ import { CloudAuthHandlers, CloudAuthPublicHandlers } from "./auth/handlers";
 import { WorkOSAuth } from "./auth/workos";
 import { DbService } from "./services/db";
 import { createTeamExecutor } from "./services/executor";
-import { env } from "./env";
+import { server } from "./env";
 
 const ProtectedCloudApi = addGroup(OpenApiGroup)
   .add(McpGroup)
@@ -105,7 +105,7 @@ const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: "lax" as const,
   maxAge: 60 * 60 * 24 * 7,
-  secure: env.NODE_ENV === "production",
+  secure: server.NODE_ENV === "production",
 };
 
 const resolveAuth = (request: Request) =>
@@ -152,7 +152,7 @@ const resolveExecutor = (teamId: string) =>
     const users = yield* UserStoreService;
     const team = yield* users.use((store) => store.getTeam(teamId));
     const teamName = team?.name ?? "Unknown Team";
-    const encryptionKey = env.ENCRYPTION_KEY;
+    const encryptionKey = server.ENCRYPTION_KEY;
     return yield* createTeamExecutor(teamId, teamName, encryptionKey);
   });
 
