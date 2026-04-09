@@ -124,10 +124,15 @@ const resolveTeamId = (
   cookieTeamId: string | null,
 ) =>
   Effect.gen(function* () {
-    if (cookieTeamId) return cookieTeamId;
-
     const users = yield* UserStoreService;
     const teams = yield* users.use((store) => store.getTeamsForUser(auth.userId));
+
+    if (cookieTeamId) {
+      const hasAccess = teams.some((t) => t.teamId === cookieTeamId);
+      if (hasAccess) return cookieTeamId;
+      // Cookie references a team the user doesn't belong to — ignore it
+    }
+
     if (teams.length > 0) return teams[0]!.teamId;
 
     const user = yield* users.use((store) =>
