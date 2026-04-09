@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { Effect } from "effect";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 
 import type { ToolId } from "@executor/sdk";
 import type { DrizzleDb } from "./types";
@@ -131,15 +131,16 @@ export const makePgToolRegistry = (
 
     registerDefinitions: (newDefs: Record<string, unknown>) =>
       Effect.tryPromise(async () => {
-        for (const [name, schema] of Object.entries(newDefs)) {
-          await db
-            .insert(toolDefinitions)
-            .values({ name, teamId, schema })
-            .onConflictDoUpdate({
-              target: [toolDefinitions.name, toolDefinitions.teamId],
-              set: { schema },
-            });
-        }
+        const entries = Object.entries(newDefs);
+        if (entries.length === 0) return;
+        const values = entries.map(([name, schema]) => ({ name, teamId, schema }));
+        await db
+          .insert(toolDefinitions)
+          .values(values)
+          .onConflictDoUpdate({
+            target: [toolDefinitions.name, toolDefinitions.teamId],
+            set: { schema: sql`excluded.schema` },
+          });
       }).pipe(Effect.orDie),
 
     registerRuntimeDefinitions: (newDefs: Record<string, unknown>) =>
@@ -189,33 +190,33 @@ export const makePgToolRegistry = (
 
     register: (newTools: readonly ToolRegistration[]) =>
       Effect.tryPromise(async () => {
-        for (const t of newTools) {
-          await db
-            .insert(tools)
-            .values({
-              id: t.id,
-              teamId,
-              sourceId: t.sourceId,
-              pluginKey: t.pluginKey,
-              name: t.name,
-              description: t.description,
-              mayElicit: t.mayElicit,
-              inputSchema: t.inputSchema,
-              outputSchema: t.outputSchema,
-            })
-            .onConflictDoUpdate({
-              target: [tools.id, tools.teamId],
-              set: {
-                sourceId: t.sourceId,
-                pluginKey: t.pluginKey,
-                name: t.name,
-                description: t.description,
-                mayElicit: t.mayElicit,
-                inputSchema: t.inputSchema,
-                outputSchema: t.outputSchema,
-              },
-            });
-        }
+        if (newTools.length === 0) return;
+        const values = newTools.map((t) => ({
+          id: t.id,
+          teamId,
+          sourceId: t.sourceId,
+          pluginKey: t.pluginKey,
+          name: t.name,
+          description: t.description,
+          mayElicit: t.mayElicit,
+          inputSchema: t.inputSchema,
+          outputSchema: t.outputSchema,
+        }));
+        await db
+          .insert(tools)
+          .values(values)
+          .onConflictDoUpdate({
+            target: [tools.id, tools.teamId],
+            set: {
+              sourceId: sql`excluded.source_id`,
+              pluginKey: sql`excluded.plugin_key`,
+              name: sql`excluded.name`,
+              description: sql`excluded.description`,
+              mayElicit: sql`excluded.may_elicit`,
+              inputSchema: sql`excluded.input_schema`,
+              outputSchema: sql`excluded.output_schema`,
+            },
+          });
       }).pipe(Effect.orDie),
 
     registerRuntime: (newTools: readonly ToolRegistration[]) =>
@@ -239,10 +240,11 @@ export const makePgToolRegistry = (
         for (const id of toolIds) {
           runtimeTools.delete(id);
           runtimeHandlers.delete(id);
-          await db
-            .delete(tools)
-            .where(and(eq(tools.id, id), eq(tools.teamId, teamId)));
         }
+        if (toolIds.length === 0) return;
+        await db
+          .delete(tools)
+          .where(and(inArray(tools.id, [...toolIds]), eq(tools.teamId, teamId)));
       }).pipe(Effect.orDie),
 
     unregisterBySource: (sourceId: string) =>
